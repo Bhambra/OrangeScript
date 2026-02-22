@@ -1264,6 +1264,8 @@ export default function OrangeScript({ cloudDoctor }) {
   const [templateModal, setTemplateModal] = useState(null); // { name, sections, testValues, icdCodes, customSections }
   const online = useOnlineStatus();
   const [syncStatus, setSyncStatus] = useState("idle");
+  const [liveConditions, setLiveConditions] = useState(patient ? (patient.knownConditions || patient.conditions.join(", ")) : "");
+  const [liveFollowUp, setLiveFollowUp] = useState("");
 
   // ── Helper: load prescriptions for a single patient from Supabase ──
   const loadPatientPrescriptions = useCallback(async (patientId) => {
@@ -1698,8 +1700,6 @@ export default function OrangeScript({ cloudDoctor }) {
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, [navigatePage]);
-  const [liveConditions, setLiveConditions] = useState(patient ? (patient.knownConditions || patient.conditions.join(", ")) : "");
-  const [liveFollowUp, setLiveFollowUp] = useState("");
   const [savedRxs, setSavedRxs] = usePersistedState("savedRxs", []);
   const [patientNotes, setPatientNotes] = usePersistedState("patientNotes", () => {
     const init = {};
