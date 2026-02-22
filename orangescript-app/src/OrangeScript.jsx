@@ -1226,6 +1226,7 @@ export default function OrangeScript({ cloudDoctor }) {
   const { signOut, saveDoctorProfile: saveProfileToCloud, user } = useAuth();
   const doctorId = user?.id;
   const noteIdMapRef = useRef({});
+  const currentRxIdRef = useRef(null); // Supabase prescription UUID for the active Rx page
   const [dataLoaded, setDataLoaded] = useState(false);
   const [patients, setPatients] = usePersistedState("patients", [...PATIENTS]);
   const [patient, setPatient] = useState(() => {
@@ -1322,6 +1323,7 @@ export default function OrangeScript({ cloudDoctor }) {
               const pageId = Date.now();
               setRxPages([{ id: pageId, patientId: activePatientId, data: rxPageData, saved: true, createdAt: latestRx.created_at }]);
               setActivePageId(pageId);
+              currentRxIdRef.current = latestRx.id; // Track the Supabase ID so we update instead of creating new
             }
           }
         }
@@ -1616,6 +1618,9 @@ export default function OrangeScript({ cloudDoctor }) {
     setActivePageId(newPage.id);
     setLiveConditions(patient.conditions.join(", "));
     setLiveFollowUp("");
+    currentRxIdRef.current = null; // New Rx = no existing Supabase record yet
+    lastSavedSnapshotRef.current = null;
+    setRxDirty(false);
   }, [snapshotCurrentPage, patient]);
 
   // ⌘+Left/Right to navigate pages (within current patient)
@@ -1739,6 +1744,7 @@ export default function OrangeScript({ cloudDoctor }) {
   }, [getRxSnapshot]);
 
   // Save Rx content to Supabase (without printing)
+  // Updates existing prescription if one exists, creates new if not
   const saveRxToCloud = useCallback(async () => {
     if (!doctorId || !patient || !patient.id) return;
     const data = rxDataRef.current;
@@ -1755,14 +1761,24 @@ export default function OrangeScript({ cloudDoctor }) {
     try {
       const followUpSec = (data.sections || []).find(s => s.id === "followup");
       const followUpDate = followUpSec?.content.trim().match(/^\d{4}-\d{2}-\d{2}$/) ? followUpSec.content.trim() : null;
-      await db.createPrescription(doctorId, patient.id, {
+      const rxPayload = {
         sections: secs.map(s => ({ id: s.id, label: s.label, content: s.content })),
         icdCodes: data.icdCodes || {},
         knownConditions: data.knownConditions || "",
         testValues: data.testValues || "",
         customSections: data.customSections || [],
         followUpDate,
-      });
+      };
+
+      if (currentRxIdRef.current) {
+        // Update existing prescription
+        await db.updatePrescription(currentRxIdRef.current, rxPayload);
+      } else {
+        // Create new prescription and track its ID
+        const newRx = await db.createPrescription(doctorId, patient.id, rxPayload);
+        if (newRx && newRx.id) currentRxIdRef.current = newRx.id;
+      }
+
       lastSavedSnapshotRef.current = snapshot;
       setRxDirty(false);
       setRxSaveStatus("saved");
@@ -1822,17 +1838,31 @@ export default function OrangeScript({ cloudDoctor }) {
       // Mark current page as saved
       setRxPages(prev => prev.map(p => p.id === activePageId ? { ...p, saved: true, data: { ...rxDataRef.current } } : p));
 
-      // Sync prescription to Supabase (with FULL section content)
+      // Sync prescription to Supabase (update existing or create new)
       if (doctorId && patient.id) {
         const followUpDate = followUpSec?.content.trim().match(/^\d{4}-\d{2}-\d{2}$/) ? followUpSec.content.trim() : null;
-        db.createPrescription(doctorId, patient.id, {
+        const rxPayload = {
           sections: (data.sections || []).map(s => ({ id: s.id, label: s.label, content: s.content })),
           icdCodes: data.icdCodes || {},
           knownConditions: data.knownConditions || "",
           testValues: data.testValues || "",
           customSections: data.customSections || [],
           followUpDate,
-        }).catch(e => console.error("Cloud prescription save failed:", e));
+        };
+        try {
+          if (currentRxIdRef.current) {
+            await db.updatePrescription(currentRxIdRef.current, rxPayload);
+          } else {
+            const newRx = await db.createPrescription(doctorId, patient.id, rxPayload);
+            if (newRx && newRx.id) currentRxIdRef.current = newRx.id;
+          }
+          // Update saved snapshot so auto-save doesn't re-save the same data
+          lastSavedSnapshotRef.current = getRxSnapshot();
+          setRxDirty(false);
+          setRxSaveStatus("saved");
+          setSyncStatus("synced");
+          setTimeout(() => { setRxSaveStatus("idle"); setSyncStatus("idle"); }, 3000);
+        } catch (e) { console.error("Cloud prescription save failed:", e); }
       }
 
       if (result === "shared") showToast("Prescription shared for " + data.pName);
@@ -1844,7 +1874,7 @@ export default function OrangeScript({ cloudDoctor }) {
     } finally {
       setSaving(false);
     }
-  }, [showToast, activePageId, doctor, doctorId, patient]);
+  }, [showToast, activePageId, doctor, doctorId, patient, getRxSnapshot]);
   const toggleCard = (k) => setOpenCards(c => ({ ...c, [k]: !c[k] }));
 
   return (

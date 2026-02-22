@@ -130,6 +130,26 @@ export async function createPrescription(doctorId, patientId, rxData) {
   return data;
 }
 
+/** Update an existing prescription record */
+export async function updatePrescription(prescriptionId, rxData) {
+  const { data, error } = await supabase
+    .from("prescriptions")
+    .update({
+      sections: rxData.sections || [],
+      icd_codes: rxData.icdCodes || {},
+      known_conditions: rxData.knownConditions || "",
+      test_values: rxData.testValues || "",
+      custom_sections: rxData.customSections || [],
+      follow_up_date: rxData.followUpDate || null,
+    })
+    .eq("id", prescriptionId)
+    .select()
+    .single();
+
+  if (error) { console.error("updatePrescription error:", error); throw error; }
+  return data;
+}
+
 // ============================================================
 // TEMPLATES
 // ============================================================
