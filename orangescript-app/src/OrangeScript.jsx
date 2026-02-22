@@ -1266,9 +1266,10 @@ export default function OrangeScript({ cloudDoctor }) {
 
   // ── Helper: load prescriptions for a single patient from Supabase ──
   const loadPatientPrescriptions = useCallback(async (patientId) => {
-    if (!doctorId || !patientId) return;
+    if (!doctorId || !patientId) { console.warn("[Rx] skip load — no doctorId/patientId", doctorId, patientId); return; }
     try {
       const dbRxs = await db.fetchPrescriptionsForPatient(doctorId, patientId);
+      console.log("[Rx] loaded", dbRxs.length, "prescriptions for patient", patientId);
       if (dbRxs.length > 0) {
         // Build Rx pages (oldest → newest so latest is last)
         const pages = dbRxs.map((rx, i) => ({
@@ -1334,11 +1335,13 @@ export default function OrangeScript({ cloudDoctor }) {
         if (cancelled) return;
 
         // Patients
+        console.log("[Mount] loaded", dbPatients.length, "patients");
         if (dbPatients.length > 0) {
           setPatients(dbPatients);
           const activeP = lsGet("activePatient", null);
           const matchedP = activeP ? dbPatients.find(p => p.id === activeP.id) : null;
           const selectedPatient = matchedP || dbPatients[0];
+          console.log("[Mount] selected patient:", selectedPatient.name, selectedPatient.id);
           setPatient(selectedPatient);
           lsSet("activePatient", selectedPatient);
 
@@ -1783,10 +1786,13 @@ export default function OrangeScript({ cloudDoctor }) {
 
       if (currentRxIdRef.current) {
         // Update existing prescription
+        console.log("[Rx] updating existing prescription", currentRxIdRef.current);
         await db.updatePrescription(currentRxIdRef.current, rxPayload);
       } else {
         // Create new prescription and track its ID
+        console.log("[Rx] creating new prescription for patient", patient.id);
         const newRx = await db.createPrescription(doctorId, patient.id, rxPayload);
+        console.log("[Rx] created prescription:", newRx?.id);
         if (newRx && newRx.id) {
           currentRxIdRef.current = newRx.id;
           // Store the Supabase UUID on the page so navigatePage can use it
