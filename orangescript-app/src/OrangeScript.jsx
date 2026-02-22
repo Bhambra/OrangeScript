@@ -707,6 +707,8 @@ function RxEditor({ patient, onSave, customPhrases, onSavePhrase, onDeletePhrase
   const focusedSecId = useRef(null);
   const [dateError, setDateError] = useState(false);
   const [icdCodes, setIcdCodes] = useState(() => initialData ? (initialData.icdCodes || {}) : {});
+  // Track phrases inserted via picker (including API results) for highlighting
+  const usedPhrasesRef = useRef({});
 
   // Patient identity ALWAYS from authoritative patient prop (read-only on Rx pad)
   const [pName, setPName] = useState(patient.name);
@@ -794,7 +796,11 @@ function RxEditor({ patient, onSave, customPhrases, onSavePhrase, onDeletePhrase
   const getPhrasePool = (secId) => {
     const builtIn = PHRASES[secId] || [];
     const custom = customPhrases[secId] || [];
-    return [...builtIn, ...custom];
+    const used = usedPhrasesRef.current[secId] || [];
+    const pool = [...builtIn, ...custom];
+    const poolNames = new Set(pool.map(p => typeof p === "object" ? p.name.toLowerCase() : p.toLowerCase()));
+    used.forEach(u => { if (!poolNames.has(u.name.toLowerCase())) pool.push(u); });
+    return pool;
   };
 
   const deleteSection = (secId) => {
@@ -866,6 +872,12 @@ function RxEditor({ patient, onSave, customPhrases, onSavePhrase, onDeletePhrase
     // Track ICD code if present
     if (typeof phrase === "object" && phrase.icd) {
       setIcdCodes(prev => ({ ...prev, [phrase.name]: phrase.icd }));
+    }
+    // Track used phrase for highlighting (especially API-sourced ones)
+    const phraseObj = typeof phrase === "object" ? phrase : { name: phrase };
+    const existing = usedPhrasesRef.current[secId] || [];
+    if (!existing.some(u => u.name.toLowerCase() === phraseObj.name.toLowerCase())) {
+      usedPhrasesRef.current = { ...usedPhrasesRef.current, [secId]: [...existing, phraseObj] };
     }
     setSections(prev => prev.map(s => {
       if (s.id !== secId) return s;
