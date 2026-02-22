@@ -4,11 +4,11 @@ import { supabase } from "./supabase.js";
 // PATIENTS
 // ============================================================
 
-/** Fetch all patients linked to this doctor (with last_visit from junction) */
+/** Fetch all patients linked to this doctor (with last_visit and known_conditions from junction) */
 export async function fetchDoctorPatients(doctorId) {
   const { data, error } = await supabase
     .from("doctor_patients")
-    .select("patient_id, last_visit, patients(*)")
+    .select("patient_id, last_visit, known_conditions, patients(*)")
     .eq("doctor_id", doctorId)
     .order("last_visit", { ascending: false });
 
@@ -27,9 +27,23 @@ export async function fetchDoctorPatients(doctorId) {
           day: "2-digit", month: "short", year: "numeric", timeZone: "Asia/Kolkata",
         })
       : "",
-    conditions: [],
+    conditions: row.known_conditions
+      ? row.known_conditions.split(",").map(c => c.trim()).filter(Boolean)
+      : [],
+    knownConditions: row.known_conditions || "",
     notes: "",
   }));
+}
+
+/** Update the known_conditions on the doctor-patient link */
+export async function updatePatientConditions(doctorId, patientId, conditions) {
+  const { error } = await supabase
+    .from("doctor_patients")
+    .update({ known_conditions: conditions })
+    .eq("doctor_id", doctorId)
+    .eq("patient_id", patientId);
+
+  if (error) { console.error("updatePatientConditions error:", error); throw error; }
 }
 
 /** Create or find a patient, link to doctor. Returns the patient UUID. */

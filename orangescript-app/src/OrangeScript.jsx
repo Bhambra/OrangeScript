@@ -1294,6 +1294,21 @@ export default function OrangeScript({ cloudDoctor }) {
         const lastPage = pages[pages.length - 1];
         setActivePageId(lastPage.id);
         currentRxIdRef.current = lastPage.supabaseRxId || null;
+
+        // Sync latest Rx known_conditions → patient record if they differ
+        const latestRx = dbRxs[dbRxs.length - 1]; // newest (ascending order)
+        const latestConditions = latestRx.known_conditions || "";
+        setPatients(prev => prev.map(p => {
+          if (p.id !== patientId) return p;
+          if (p.knownConditions === latestConditions) return p;
+          // Update patient in-memory and persist to DB
+          db.updatePatientConditions(doctorId, patientId, latestConditions).catch(e => console.error("Failed to sync patient conditions:", e));
+          const updated = { ...p, knownConditions: latestConditions, conditions: latestConditions ? latestConditions.split(",").map(c => c.trim()).filter(Boolean) : [] };
+          // Also update active patient if it's this one
+          setPatient(prev => prev && prev.id === patientId ? updated : prev);
+          lsSet("activePatient", updated);
+          return updated;
+        }));
       } else {
         // No prescriptions — create a blank page
         const blankPage = { id: Date.now(), patientId, data: null, saved: false, createdAt: new Date().toISOString() };
@@ -1387,7 +1402,7 @@ export default function OrangeScript({ cloudDoctor }) {
     }
     setPatient(p);
     lsSet("activePatient", p);
-    setLiveConditions(p.conditions.join(", "));
+    setLiveConditions(p.knownConditions || p.conditions.join(", "));
     setLiveFollowUp("");
 
     // Fetch prescriptions from Supabase for this patient
@@ -1621,8 +1636,8 @@ export default function OrangeScript({ cloudDoctor }) {
   const createNewRx = useCallback(() => {
     if (!patient) return;
     snapshotCurrentPage();
-    // Carry forward Known Conditions from the current Rx to the new one
-    const carryConditions = liveConditions || patient.conditions.join(", ");
+    // Carry forward Known Conditions: prefer live (from current Rx), then patient DB record
+    const carryConditions = liveConditions || patient.knownConditions || patient.conditions.join(", ");
     const newPage = {
       id: Date.now(), patientId: patient.id, saved: false, createdAt: new Date().toISOString(),
       data: carryConditions ? { knownConditions: carryConditions } : null,
@@ -1657,7 +1672,7 @@ export default function OrangeScript({ cloudDoctor }) {
     lastSavedSnapshotRef.current = null; // Reset snapshot for new page
     setRxDirty(false);
     // Update live state from target page
-    setLiveConditions(targetPage.data ? (targetPage.data.knownConditions || (patient ? patient.conditions.join(", ") : "")) : (patient ? patient.conditions.join(", ") : ""));
+    setLiveConditions(targetPage.data ? (targetPage.data.knownConditions || (patient ? (patient.knownConditions || patient.conditions.join(", ")) : "")) : (patient ? (patient.knownConditions || patient.conditions.join(", ")) : ""));
     const fuSec = targetPage.data ? (targetPage.data.sections || []).find(s => s.id === "followup") : null;
     setLiveFollowUp(fuSec ? fuSec.content : "");
   }, [patient]);
@@ -1676,7 +1691,7 @@ export default function OrangeScript({ cloudDoctor }) {
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, [navigatePage]);
-  const [liveConditions, setLiveConditions] = useState(patient ? patient.conditions.join(", ") : "");
+  const [liveConditions, setLiveConditions] = useState(patient ? (patient.knownConditions || patient.conditions.join(", ")) : "");
   const [liveFollowUp, setLiveFollowUp] = useState("");
   const [savedRxs, setSavedRxs] = usePersistedState("savedRxs", []);
   const [patientNotes, setPatientNotes] = usePersistedState("patientNotes", () => {
@@ -1798,6 +1813,18 @@ export default function OrangeScript({ cloudDoctor }) {
         }
       }
 
+      // Sync known_conditions to the patient record (doctor_patients junction)
+      const currentConditions = data.knownConditions || "";
+      if (currentConditions !== (patient.knownConditions || "")) {
+        db.updatePatientConditions(doctorId, patient.id, currentConditions).then(() => {
+          // Update local patient object so Summary Status and future New Rx use the latest
+          const updatedPatient = { ...patient, knownConditions: currentConditions, conditions: currentConditions ? currentConditions.split(",").map(c => c.trim()).filter(Boolean) : [] };
+          setPatient(updatedPatient);
+          lsSet("activePatient", updatedPatient);
+          setPatients(prev => prev.map(p => p.id === patient.id ? updatedPatient : p));
+        }).catch(e => console.error("Failed to sync patient conditions:", e));
+      }
+
       lastSavedSnapshotRef.current = snapshot;
       setRxDirty(false);
       setRxSaveStatus("saved");
@@ -1877,6 +1904,16 @@ export default function OrangeScript({ cloudDoctor }) {
               currentRxIdRef.current = newRx.id;
               setRxPages(prev => prev.map(p => p.id === activePageId ? { ...p, supabaseRxId: newRx.id } : p));
             }
+          }
+          // Sync known_conditions to patient record
+          const currentConditions = data.knownConditions || "";
+          if (currentConditions !== (patient.knownConditions || "")) {
+            db.updatePatientConditions(doctorId, patient.id, currentConditions).then(() => {
+              const updatedPatient = { ...patient, knownConditions: currentConditions, conditions: currentConditions ? currentConditions.split(",").map(c => c.trim()).filter(Boolean) : [] };
+              setPatient(updatedPatient);
+              lsSet("activePatient", updatedPatient);
+              setPatients(prev => prev.map(p => p.id === patient.id ? updatedPatient : p));
+            }).catch(e => console.error("Failed to sync patient conditions:", e));
           }
           // Update saved snapshot so auto-save doesn't re-save the same data
           lastSavedSnapshotRef.current = getRxSnapshot();
