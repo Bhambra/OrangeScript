@@ -1264,6 +1264,59 @@ export default function OrangeScript({ cloudDoctor }) {
   const online = useOnlineStatus();
   const [syncStatus, setSyncStatus] = useState("idle");
 
+  // ── Helper: load prescriptions for a single patient from Supabase ──
+  const loadPatientPrescriptions = useCallback(async (patientId) => {
+    if (!doctorId || !patientId) return;
+    try {
+      const dbRxs = await db.fetchPrescriptionsForPatient(doctorId, patientId);
+      if (dbRxs.length > 0) {
+        // Build Rx pages (oldest → newest so latest is last)
+        const pages = dbRxs.map((rx, i) => ({
+          id: Date.now() + i,
+          patientId: rx.patient_id,
+          supabaseRxId: rx.id,
+          data: {
+            sections: rx.sections || [],
+            knownConditions: rx.known_conditions || "",
+            testValues: rx.test_values || "",
+            icdCodes: rx.icd_codes || {},
+            customSections: rx.custom_sections || [],
+          },
+          saved: true,
+          createdAt: rx.created_at,
+        }));
+
+        // Replace only this patient's pages (keep pages for other patients)
+        setRxPages(prev => {
+          const otherPages = prev.filter(pg => pg.patientId !== patientId);
+          return [...otherPages, ...pages];
+        });
+        const lastPage = pages[pages.length - 1];
+        setActivePageId(lastPage.id);
+        currentRxIdRef.current = lastPage.supabaseRxId || null;
+      } else {
+        // No prescriptions — create a blank page
+        const blankPage = { id: Date.now(), patientId, data: null, saved: false, createdAt: new Date().toISOString() };
+        setRxPages(prev => {
+          const otherPages = prev.filter(pg => pg.patientId !== patientId);
+          return [...otherPages, blankPage];
+        });
+        setActivePageId(blankPage.id);
+        currentRxIdRef.current = null;
+      }
+    } catch (err) {
+      console.error("Failed to load prescriptions for patient:", err);
+      // Fallback: create a blank page
+      const blankPage = { id: Date.now(), patientId, data: null, saved: false, createdAt: new Date().toISOString() };
+      setRxPages(prev => {
+        const otherPages = prev.filter(pg => pg.patientId !== patientId);
+        return [...otherPages, blankPage];
+      });
+      setActivePageId(blankPage.id);
+      currentRxIdRef.current = null;
+    }
+  }, [doctorId]);
+
   // ── Load all data from Supabase on mount ──
   useEffect(() => {
     if (!doctorId) return;
@@ -1271,9 +1324,8 @@ export default function OrangeScript({ cloudDoctor }) {
 
     async function loadAllData() {
       try {
-        const [dbPatients, dbPrescriptions, dbTemplates, dbPhrases, dbNotes] = await Promise.all([
+        const [dbPatients, dbTemplates, dbPhrases, dbNotes] = await Promise.all([
           db.fetchDoctorPatients(doctorId),
-          db.fetchPrescriptions(doctorId),
           db.fetchTemplates(doctorId),
           db.fetchCustomPhrases(doctorId),
           db.fetchPatientNotes(doctorId),
@@ -1284,48 +1336,14 @@ export default function OrangeScript({ cloudDoctor }) {
         // Patients
         if (dbPatients.length > 0) {
           setPatients(dbPatients);
-          // Select first patient if none selected
           const activeP = lsGet("activePatient", null);
           const matchedP = activeP ? dbPatients.find(p => p.id === activeP.id) : null;
-          if (!matchedP && dbPatients.length > 0) {
-            setPatient(dbPatients[0]);
-            lsSet("activePatient", dbPatients[0]);
-          }
-        }
+          const selectedPatient = matchedP || dbPatients[0];
+          setPatient(selectedPatient);
+          lsSet("activePatient", selectedPatient);
 
-        // Prescriptions
-        if (dbPrescriptions.length > 0) {
-          const mapped = dbPrescriptions.map(rx => ({
-            id: rx.id,
-            patientId: rx.patient_id,
-            date: rx.created_at,
-            followUpText: rx.follow_up_date || "",
-            sections: rx.sections || [],
-            icdCodes: rx.icd_codes || {},
-            knownConditions: rx.known_conditions || "",
-            testValues: rx.test_values || "",
-          }));
-          setSavedRxs(mapped);
-
-          // Pre-populate the editor with the most recent prescription for the active patient
-          const activeP = lsGet("activePatient", null);
-          const activePatientId = activeP ? activeP.id : (dbPatients.length > 0 ? dbPatients[0].id : null);
-          if (activePatientId) {
-            const latestRx = dbPrescriptions.find(rx => rx.patient_id === activePatientId);
-            if (latestRx && latestRx.sections && latestRx.sections.length > 0) {
-              const rxPageData = {
-                sections: latestRx.sections,
-                knownConditions: latestRx.known_conditions || "",
-                testValues: latestRx.test_values || "",
-                icdCodes: latestRx.icd_codes || {},
-                customSections: latestRx.custom_sections || [],
-              };
-              const pageId = Date.now();
-              setRxPages([{ id: pageId, patientId: activePatientId, data: rxPageData, saved: true, createdAt: latestRx.created_at }]);
-              setActivePageId(pageId);
-              currentRxIdRef.current = latestRx.id; // Track the Supabase ID so we update instead of creating new
-            }
-          }
+          // Lazy-load prescriptions for the initially selected patient
+          await loadPatientPrescriptions(selectedPatient.id);
         }
 
         // Templates
@@ -1361,7 +1379,7 @@ export default function OrangeScript({ cloudDoctor }) {
     return () => { cancelled = true; };
   }, [doctorId]);
 
-  // Persist active patient selection
+  // Persist active patient selection — lazy-loads prescriptions from Supabase
   const selectPatient = useCallback((p) => {
     // Snapshot current page before switching
     if (rxDataRef.current && Object.keys(rxDataRef.current).length > 0) {
@@ -1371,20 +1389,10 @@ export default function OrangeScript({ cloudDoctor }) {
     lsSet("activePatient", p);
     setLiveConditions(p.conditions.join(", "));
     setLiveFollowUp("");
-    // Find existing pages for this patient, or create one
-    setRxPages(prev => {
-      const existing = prev.filter(pg => pg.patientId === p.id);
-      if (existing.length > 0) {
-        // Jump to last page for this patient
-        setActivePageId(existing[existing.length - 1].id);
-        return prev;
-      }
-      // No pages for this patient yet — create one
-      const newPage = { id: Date.now(), patientId: p.id, data: null, saved: false, createdAt: new Date().toISOString() };
-      setActivePageId(newPage.id);
-      return [...prev, newPage];
-    });
-  }, [activePageId]);
+
+    // Fetch prescriptions from Supabase for this patient
+    loadPatientPrescriptions(p.id);
+  }, [activePageId, loadPatientPrescriptions]);
 
   const savePhrase = useCallback((secId, phrase) => {
     setCustomPhrases(prev => {
@@ -1641,6 +1649,9 @@ export default function OrangeScript({ cloudDoctor }) {
     }
     const targetPage = pages[newIdx];
     setActivePageId(targetPage.id);
+    currentRxIdRef.current = targetPage.supabaseRxId || null;
+    lastSavedSnapshotRef.current = null; // Reset snapshot for new page
+    setRxDirty(false);
     // Update live state from target page
     setLiveConditions(targetPage.data ? (targetPage.data.knownConditions || (patient ? patient.conditions.join(", ") : "")) : (patient ? patient.conditions.join(", ") : ""));
     const fuSec = targetPage.data ? (targetPage.data.sections || []).find(s => s.id === "followup") : null;
@@ -1776,7 +1787,11 @@ export default function OrangeScript({ cloudDoctor }) {
       } else {
         // Create new prescription and track its ID
         const newRx = await db.createPrescription(doctorId, patient.id, rxPayload);
-        if (newRx && newRx.id) currentRxIdRef.current = newRx.id;
+        if (newRx && newRx.id) {
+          currentRxIdRef.current = newRx.id;
+          // Store the Supabase UUID on the page so navigatePage can use it
+          setRxPages(prev => prev.map(p => p.id === activePageId ? { ...p, supabaseRxId: newRx.id } : p));
+        }
       }
 
       lastSavedSnapshotRef.current = snapshot;
@@ -1854,7 +1869,10 @@ export default function OrangeScript({ cloudDoctor }) {
             await db.updatePrescription(currentRxIdRef.current, rxPayload);
           } else {
             const newRx = await db.createPrescription(doctorId, patient.id, rxPayload);
-            if (newRx && newRx.id) currentRxIdRef.current = newRx.id;
+            if (newRx && newRx.id) {
+              currentRxIdRef.current = newRx.id;
+              setRxPages(prev => prev.map(p => p.id === activePageId ? { ...p, supabaseRxId: newRx.id } : p));
+            }
           }
           // Update saved snapshot so auto-save doesn't re-save the same data
           lastSavedSnapshotRef.current = getRxSnapshot();

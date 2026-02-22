@@ -101,6 +101,19 @@ export async function fetchPrescriptions(doctorId) {
   return data || [];
 }
 
+/** Fetch all prescriptions for a specific patient (by this doctor) */
+export async function fetchPrescriptionsForPatient(doctorId, patientId) {
+  const { data, error } = await supabase
+    .from("prescriptions")
+    .select("*")
+    .eq("doctor_id", doctorId)
+    .eq("patient_id", patientId)
+    .order("created_at", { ascending: true });
+
+  if (error) { console.error("fetchPrescriptionsForPatient error:", error); return []; }
+  return data || [];
+}
+
 /** Create a prescription record */
 export async function createPrescription(doctorId, patientId, rxData) {
   const { data, error } = await supabase
