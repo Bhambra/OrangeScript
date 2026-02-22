@@ -847,7 +847,6 @@ function RxEditor({ patient, onSave, customPhrases, onSavePhrase, onDeletePhrase
 
   // Push live conditions to parent for Summary Status sync
   useEffect(() => {
-    console.log("[RxEditor] pushing knownConditions to parent:", JSON.stringify(knownConditions));
     if (onLiveConditions) onLiveConditions(knownConditions);
   }, [knownConditions, onLiveConditions]);
 
@@ -1640,10 +1639,9 @@ export default function OrangeScript({ cloudDoctor }) {
 
   const createNewRx = useCallback(() => {
     if (!patient) return;
-    // Read conditions BEFORE snapshot (from current rxDataRef)
+    // Carry forward Known Conditions from current Rx → patient DB → patient conditions
     const currentRxConditions = rxDataRef.current?.knownConditions || "";
     const carryConditions = currentRxConditions || liveConditions || patient.knownConditions || patient.conditions.join(", ");
-    console.log("[NewRx] carryConditions:", JSON.stringify(carryConditions), "from rxDataRef:", JSON.stringify(currentRxConditions), "liveConditions:", JSON.stringify(liveConditions), "patient.knownConditions:", JSON.stringify(patient.knownConditions));
     snapshotCurrentPage();
     const newPage = {
       id: Date.now(), patientId: patient.id, saved: false, createdAt: new Date().toISOString(),
