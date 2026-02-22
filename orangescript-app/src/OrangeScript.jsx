@@ -44,165 +44,7 @@ const PHRASES = {
     "nausea and vomiting, 3 episodes today",
     "joint pain bilateral knees",
   ],
-  diagnosis: [
-    // ── Infectious Diseases (A/B) ──
-    { name: "Typhoid Fever", icd: "A01.0" },
-    { name: "Salmonella Gastroenteritis", icd: "A02.0" },
-    { name: "Bacillary Dysentery", icd: "A03.9" },
-    { name: "Amoebiasis", icd: "A06.9" },
-    { name: "Acute Gastroenteritis", icd: "A09" },
-    { name: "Pulmonary Tuberculosis", icd: "A15.0" },
-    { name: "Chickenpox", icd: "B01.9" },
-    { name: "Herpes Zoster", icd: "B02.9" },
-    { name: "Measles", icd: "B05.9" },
-    { name: "Viral Hepatitis A", icd: "B15.9" },
-    { name: "Viral Hepatitis B", icd: "B16.9" },
-    { name: "Dengue Fever", icd: "A90" },
-    { name: "Dengue Haemorrhagic Fever", icd: "A91" },
-    { name: "Malaria — P. vivax", icd: "B51.9" },
-    { name: "Malaria — P. falciparum", icd: "B50.9" },
-    { name: "Dermatophytosis (Ringworm)", icd: "B35.9" },
-    { name: "Candidiasis, unspecified", icd: "B37.9" },
-    { name: "Viral Fever, unspecified", icd: "B34.9" },
-    { name: "Chikungunya", icd: "A92.0" },
-    { name: "COVID-19", icd: "U07.1" },
-    // ── Blood & Immune (D) ──
-    { name: "Iron Deficiency Anaemia", icd: "D50.9" },
-    { name: "Vitamin B12 Deficiency Anaemia", icd: "D51.9" },
-    { name: "Folate Deficiency Anaemia", icd: "D52.9" },
-    { name: "Anaemia, unspecified", icd: "D64.9" },
-    { name: "Thrombocytopenia, unspecified", icd: "D69.6" },
-    // ── Endocrine (E) ──
-    { name: "Type 1 Diabetes Mellitus", icd: "E10.9" },
-    { name: "Type 2 Diabetes Mellitus", icd: "E11.9" },
-    { name: "Type 2 DM with Hyperglycaemia", icd: "E11.65" },
-    { name: "Type 2 DM with Diabetic Neuropathy", icd: "E11.40" },
-    { name: "Type 2 DM with Diabetic Nephropathy", icd: "E11.21" },
-    { name: "Type 2 DM with Diabetic Retinopathy", icd: "E11.319" },
-    { name: "Hypothyroidism, unspecified", icd: "E03.9" },
-    { name: "Hyperthyroidism (Thyrotoxicosis)", icd: "E05.90" },
-    { name: "Goitre, unspecified", icd: "E04.9" },
-    { name: "Vitamin D Deficiency", icd: "E55.9" },
-    { name: "Vitamin B12 Deficiency", icd: "E53.8" },
-    { name: "Hyperlipidaemia, unspecified", icd: "E78.5" },
-    { name: "Obesity, unspecified", icd: "E66.9" },
-    { name: "Hyperuricaemia (Raised Uric Acid)", icd: "E79.0" },
-    { name: "Metabolic Syndrome", icd: "E88.81" },
-    { name: "Dehydration", icd: "E86.0" },
-    // ── Mental & Behavioural (F) ──
-    { name: "Generalised Anxiety Disorder", icd: "F41.1" },
-    { name: "Panic Disorder", icd: "F41.0" },
-    { name: "Major Depressive Disorder, single episode", icd: "F32.9" },
-    { name: "Major Depressive Disorder, recurrent", icd: "F33.9" },
-    { name: "Insomnia, unspecified", icd: "F51.01" },
-    { name: "Adjustment Disorder", icd: "F43.20" },
-    // ── Neurological (G) ──
-    { name: "Migraine without Aura", icd: "G43.009" },
-    { name: "Migraine with Aura", icd: "G43.109" },
-    { name: "Tension-type Headache", icd: "G44.209" },
-    { name: "Epilepsy, unspecified", icd: "G40.909" },
-    { name: "Diabetic Polyneuropathy", icd: "G63" },
-    { name: "Carpal Tunnel Syndrome", icd: "G56.00" },
-    { name: "Bell's Palsy", icd: "G51.0" },
-    { name: "Vertigo — Benign Paroxysmal Positional", icd: "H81.10" },
-    // ── Eye & Ear (H) ──
-    { name: "Allergic Conjunctivitis", icd: "H10.10" },
-    { name: "Acute Otitis Media", icd: "H66.90" },
-    { name: "Otitis Externa", icd: "H60.90" },
-    // ── Cardiovascular (I) ──
-    { name: "Essential Hypertension", icd: "I10" },
-    { name: "Hypertensive Heart Disease", icd: "I11.9" },
-    { name: "Hypertensive Chronic Kidney Disease", icd: "I12.9" },
-    { name: "Angina Pectoris, unspecified", icd: "I20.9" },
-    { name: "Acute Myocardial Infarction", icd: "I21.9" },
-    { name: "Ischaemic Heart Disease, chronic", icd: "I25.9" },
-    { name: "Atrial Fibrillation", icd: "I48.91" },
-    { name: "Heart Failure, unspecified", icd: "I50.9" },
-    { name: "Cerebrovascular Disease (Stroke)", icd: "I63.9" },
-    { name: "Peripheral Vascular Disease", icd: "I73.9" },
-    { name: "Varicose Veins of Lower Extremities", icd: "I83.90" },
-    { name: "Deep Vein Thrombosis", icd: "I82.409" },
-    // ── Respiratory (J) ──
-    { name: "Acute Nasopharyngitis (Common Cold)", icd: "J00" },
-    { name: "Acute Sinusitis", icd: "J01.90" },
-    { name: "Acute Pharyngitis", icd: "J02.9" },
-    { name: "Acute Tonsillitis", icd: "J03.90" },
-    { name: "Upper Respiratory Tract Infection", icd: "J06.9" },
-    { name: "Acute Bronchitis", icd: "J20.9" },
-    { name: "Pneumonia, unspecified organism", icd: "J18.9" },
-    { name: "Allergic Rhinitis, unspecified", icd: "J30.9" },
-    { name: "Asthma, unspecified", icd: "J45.909" },
-    { name: "Acute Exacerbation of Asthma", icd: "J45.901" },
-    { name: "COPD with Acute Exacerbation", icd: "J44.1" },
-    { name: "COPD, unspecified", icd: "J44.9" },
-    { name: "Cough, unspecified", icd: "R05.9" },
-    // ── Gastrointestinal (K) ──
-    { name: "Gastro-oesophageal Reflux Disease (GERD)", icd: "K21.0" },
-    { name: "Gastritis, unspecified", icd: "K29.70" },
-    { name: "Duodenal Ulcer", icd: "K26.9" },
-    { name: "Gastric Ulcer", icd: "K25.9" },
-    { name: "Functional Dyspepsia", icd: "K30" },
-    { name: "Irritable Bowel Syndrome", icd: "K58.9" },
-    { name: "Constipation, unspecified", icd: "K59.00" },
-    { name: "Acute Appendicitis", icd: "K35.80" },
-    { name: "Cholelithiasis (Gallstones)", icd: "K80.20" },
-    { name: "Fatty Liver Disease (NAFLD)", icd: "K76.0" },
-    { name: "Alcoholic Liver Disease", icd: "K70.9" },
-    { name: "Hepatitis, unspecified", icd: "K75.9" },
-    { name: "Haemorrhoids", icd: "K64.9" },
-    { name: "Anal Fissure", icd: "K60.2" },
-    // ── Dermatological (L) ──
-    { name: "Atopic Dermatitis (Eczema)", icd: "L20.9" },
-    { name: "Contact Dermatitis", icd: "L25.9" },
-    { name: "Psoriasis Vulgaris", icd: "L40.0" },
-    { name: "Urticaria (Hives)", icd: "L50.9" },
-    { name: "Acne Vulgaris", icd: "L70.0" },
-    { name: "Fungal Skin Infection (Tinea)", icd: "B36.9" },
-    { name: "Cellulitis, unspecified", icd: "L03.90" },
-    { name: "Alopecia, unspecified", icd: "L65.9" },
-    { name: "Scabies", icd: "B86" },
-    // ── Musculoskeletal (M) ──
-    { name: "Osteoarthritis, unspecified", icd: "M19.90" },
-    { name: "Osteoarthritis — Knee", icd: "M17.9" },
-    { name: "Osteoarthritis — Hip", icd: "M16.9" },
-    { name: "Rheumatoid Arthritis", icd: "M06.9" },
-    { name: "Gout, unspecified", icd: "M10.9" },
-    { name: "Low Back Pain (Lumbago)", icd: "M54.5" },
-    { name: "Cervicalgia (Neck Pain)", icd: "M54.2" },
-    { name: "Sciatica", icd: "M54.30" },
-    { name: "Frozen Shoulder", icd: "M75.00" },
-    { name: "Lumbar Spondylosis", icd: "M47.816" },
-    { name: "Cervical Spondylosis", icd: "M47.812" },
-    { name: "Osteoporosis, unspecified", icd: "M81.0" },
-    { name: "Plantar Fasciitis", icd: "M72.2" },
-    { name: "Fibromyalgia", icd: "M79.7" },
-    // ── Genitourinary (N) ──
-    { name: "Urinary Tract Infection", icd: "N39.0" },
-    { name: "Acute Cystitis", icd: "N30.00" },
-    { name: "Chronic Kidney Disease, unspecified", icd: "N18.9" },
-    { name: "CKD Stage 3", icd: "N18.3" },
-    { name: "CKD Stage 4", icd: "N18.4" },
-    { name: "Benign Prostatic Hyperplasia", icd: "N40.0" },
-    { name: "Kidney Stones (Nephrolithiasis)", icd: "N20.0" },
-    { name: "Ureteral Calculus", icd: "N20.1" },
-    { name: "Polycystic Ovary Syndrome", icd: "E28.2" },
-    { name: "Dysmenorrhoea", icd: "N94.6" },
-    { name: "Menopausal Syndrome", icd: "N95.1" },
-    // ── Symptoms & Signs (R) ──
-    { name: "Fever, unspecified", icd: "R50.9" },
-    { name: "Headache, unspecified", icd: "R51.9" },
-    { name: "Chest Pain, unspecified", icd: "R07.9" },
-    { name: "Abdominal Pain, unspecified", icd: "R10.9" },
-    { name: "Nausea with Vomiting", icd: "R11.2" },
-    { name: "Diarrhoea, unspecified", icd: "R19.7" },
-    { name: "Dizziness and Giddiness", icd: "R42" },
-    { name: "Fatigue / Malaise", icd: "R53.83" },
-    { name: "Dyspnoea (Breathlessness)", icd: "R06.00" },
-    { name: "Syncope (Fainting)", icd: "R55" },
-    { name: "Oedema, unspecified", icd: "R60.9" },
-    { name: "Joint Pain, unspecified", icd: "M25.50" },
-    { name: "Myalgia (Muscle Pain)", icd: "M79.10" },
-  ],
+  diagnosis: [], // Live search via ICD-10 API — custom phrases layered on top
   rx: [
     "Amoxicillin 500mg", "Paracetamol 650mg", "Metformin 500mg",
     "Amlodipine 5mg", "Pantoprazole 40mg", "Azithromycin 500mg",
@@ -234,6 +76,24 @@ const PHRASES = {
 const PATIENTS = [];
 
 const SEED_TEMPLATES = ["Viral Fever — Adult", "UTI Standard", "Diabetes Follow-Up", "Post-Op Day 1", "Hypertension Review", "URTI with Cough", "Gastro Acute"];
+
+// ── ICD-10 live search via NLM Clinical Tables API ──
+const icd10Cache = {};
+async function searchICD10(query) {
+  if (!query || query.length < 2) return [];
+  const key = query.toLowerCase();
+  if (icd10Cache[key]) return icd10Cache[key];
+  try {
+    const res = await fetch(`https://clinicaltables.nlm.nih.gov/api/icd10cm/v3/search?sf=code,name&terms=${encodeURIComponent(query)}&maxList=15`);
+    const json = await res.json();
+    const results = (json[3] || []).map(([icd, name]) => ({ name, icd }));
+    icd10Cache[key] = results;
+    return results;
+  } catch (e) {
+    console.error("ICD-10 search failed:", e);
+    return [];
+  }
+}
 
 function getIST() {
   return new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata", day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: true });
@@ -595,10 +455,14 @@ function Dropdown({ items, idx, onSelect, isSection, onDelete, customItems }) {
     }}>
       {items.map((item, i) => {
         const label = typeof item === "object" ? (item.label || item.name) : item;
+        const isLoading = typeof item === "object" && item._loading;
         const isOhl = typeof item === "object" && item.ohl;
         const icdCode = typeof item === "object" && item.icd;
         const shortcut = typeof item === "object" && item.shortcut;
         const isDeletable = onDelete && customSet.has(typeof item === "object" ? item.name : item);
+        if (isLoading) return (
+          <div key={i} style={{ padding: "8px 14px", fontSize: 12, color: B.grey, fontStyle: "italic" }}>{label}</div>
+        );
         return (
           <div key={i}
             onMouseDown={(e) => { e.preventDefault(); onSelect(item); }}
@@ -703,7 +567,7 @@ function Modal({ open, onClose, title, children, width }) {
 // ============================================================
 // INLINE PHRASE INPUT — with label on same line
 // ============================================================
-function InlinePhraseInput({ label, value, onChange, phrasePool, placeholder, onSavePhrase, onDeletePhrase, customPhrases, onIcdSelect, readOnly }) {
+function InlinePhraseInput({ label, value, onChange, phrasePool, placeholder, onSavePhrase, onDeletePhrase, customPhrases, onIcdSelect, readOnly, asyncSearch }) {
   const ref = useRef(null);
   const [dd, setDd] = useState({ show: false, items: [], idx: 0, startPos: 0 });
 
@@ -717,6 +581,18 @@ function InlinePhraseInput({ label, value, onChange, phrasePool, placeholder, on
       const query = before.substring(singleIdx + 1);
       if (!query.includes("\n") && !query.includes(";")) {
         const lower = query.toLowerCase();
+        // Async search (e.g. ICD-10 API for Known Conditions)
+        if (asyncSearch && lower.length >= 2) {
+          const customFiltered = (customPhrases || []).filter(p => { const t = typeof p === "object" ? p.name : p; return t.toLowerCase().includes(lower); });
+          setDd({ show: true, items: customFiltered.length ? customFiltered : [{ name: "Searching...", icd: "", _loading: true }], idx: 0, startPos: singleIdx });
+          asyncSearch(query).then(apiResults => {
+            const merged = [...customFiltered, ...apiResults.filter(a => !customFiltered.some(c => (typeof c === "object" ? c.name : c).toLowerCase() === a.name.toLowerCase()))];
+            if (merged.length) setDd(prev => ({ ...prev, items: merged, idx: 0 }));
+            else setDd({ show: false, items: [], idx: 0, startPos: 0 });
+          });
+          return;
+        }
+        // Local phrase pool search
         const filtered = lower
           ? phrasePool.filter(p => { const t = typeof p === "object" ? p.name : p; const icd = typeof p === "object" && p.icd ? p.icd.toLowerCase() : ""; return t.toLowerCase().includes(lower) || icd.includes(lower); })
           : phrasePool.slice(0, 8);
@@ -948,8 +824,21 @@ function RxEditor({ patient, onSave, customPhrases, onSavePhrase, onDeletePhrase
     if (singleIdx >= 0 && (singleIdx === 0 || before[singleIdx - 1] !== "\\")) {
       const query = before.substring(singleIdx + 1);
       if (!query.includes("\n") && !query.includes(";")) {
-        const pool = getPhrasePool(secId);
         const lower = query.toLowerCase();
+        // For diagnosis: use live ICD-10 API search + custom phrases on top
+        if (secId === "diagnosis" && lower.length >= 2) {
+          const custom = customPhrases.diagnosis || [];
+          const customFiltered = custom.filter(p => { const t = typeof p === "object" ? p.name : p; return t.toLowerCase().includes(lower); });
+          setDropdown({ show: true, items: customFiltered.length ? customFiltered : [{ name: "Searching...", icd: "", _loading: true }], idx: 0, type: "phrase", secId, startPos: singleIdx });
+          searchICD10(query).then(apiResults => {
+            const merged = [...customFiltered, ...apiResults.filter(a => !customFiltered.some(c => (typeof c === "object" ? c.name : c).toLowerCase() === a.name.toLowerCase()))];
+            if (merged.length) setDropdown(prev => prev.secId === secId ? { ...prev, items: merged, idx: 0 } : prev);
+            else setDropdown(prev => prev.secId === secId ? { show: false, items: [], idx: 0, type: null, secId: null, startPos: 0 } : prev);
+          });
+          return;
+        }
+        // For other sections: use local phrase pool
+        const pool = getPhrasePool(secId);
         const filtered = lower
           ? pool.filter(p => { const t = typeof p === "object" ? p.name : p; const icd = typeof p === "object" && p.icd ? p.icd.toLowerCase() : ""; return t.toLowerCase().includes(lower) || icd.includes(lower); })
           : pool.slice(0, 8);
@@ -1112,23 +1001,24 @@ function RxEditor({ patient, onSave, customPhrases, onSavePhrase, onDeletePhrase
         {pName}{pAge ? ` / ${pAge} years` : ""}{pGender ? ` / ${pGender}` : ""}{pPhone ? ` / ${pPhone}` : ""}
       </div>
 
-      {/* Known Conditions — own line */}
+      {/* Known Conditions — own line (live ICD-10 search) */}
       <InlinePhraseInput
         label="Known Conditions:"
         value={knownConditions}
         onChange={setKnownConditions}
         phrasePool={(() => {
-          const pool = [...PHRASES.diagnosis, ...(customPhrases.diagnosis || [])];
+          const pool = [...(customPhrases.diagnosis || [])];
           const poolNames = new Set(pool.map(p => typeof p === "object" ? p.name.toLowerCase() : p.toLowerCase()));
           patient.conditions.forEach(c => { if (!poolNames.has(c.toLowerCase())) pool.push(c); });
           return pool;
         })()}
-        placeholder="type \ for phrases..."
+        placeholder="type \ to search conditions..."
         onSavePhrase={(p) => onSavePhrase("diagnosis", p)}
         onDeletePhrase={(p) => onDeletePhrase("diagnosis", p)}
         customPhrases={customPhrases.diagnosis || []}
         onIcdSelect={(name, code) => setIcdCodes(prev => ({ ...prev, [name]: code }))}
         readOnly={readOnly}
+        asyncSearch={searchICD10}
       />
       <InlinePhraseInput
         label="Test Values:"
