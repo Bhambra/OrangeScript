@@ -1554,6 +1554,12 @@ export default function OrangeScript({ cloudDoctor }) {
     }
   }, [setSavedTemplates, doctorId]);
 
+  const showToast = useCallback((msg) => {
+    setToastMsg(msg);
+    setToast(true);
+    setTimeout(() => setToast(false), 2500);
+  }, []);
+
   const applyTemplate = useCallback((tpl) => {
     // Don't allow templates to overwrite signed prescriptions
     const currentPage = rxPages.find(p => p.id === activePageId);
@@ -1693,12 +1699,6 @@ export default function OrangeScript({ cloudDoctor }) {
     // Delete from Supabase
     if (noteUUID) db.deleteNote(noteUUID).catch(e => console.error("Cloud note delete failed:", e));
   }, [patient, setPatientNotes]);
-
-  const showToast = useCallback((msg) => {
-    setToastMsg(msg);
-    setToast(true);
-    setTimeout(() => setToast(false), 2500);
-  }, []);
 
   // ── Auto-save Rx to Supabase (every 15s + manual) ──
   const lastSavedSnapshotRef = useRef(null);
