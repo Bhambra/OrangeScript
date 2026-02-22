@@ -13,6 +13,8 @@ const B = {
 const LINE_H = 30;
 const FONT_BODY = "'Caveat', cursive";
 const FONT_UI = "'Montserrat', sans-serif";
+const IS_MAC = typeof navigator !== "undefined" && /Mac|iPhone|iPad|iPod/.test(navigator.userAgent);
+const MOD = IS_MAC ? "⌘" : "Ctrl+";
 
 const DEFAULT_DOCTOR = {
   name: "Dr. Priya Sharma", specialty: "General Medicine",
@@ -1878,6 +1880,7 @@ export default function OrangeScript({ cloudDoctor }) {
 
   // ── Confirmation modal state (for Sign / Discard) ──
   const [confirmAction, setConfirmAction] = useState(null); // { type: "sign"|"discard", message, onConfirm }
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
 
   // ── Sign Rx — makes a prescription permanent and read-only ──
   const handleSignRx = useCallback(async () => {
@@ -2046,11 +2049,11 @@ export default function OrangeScript({ cloudDoctor }) {
             <div style={{ width: 7, height: 7, borderRadius: "50%", background: !online ? "#e74c3c" : rxDirty ? B.orange : rxSaveStatus === "saving" ? B.orange : rxSaveStatus === "saved" ? B.green : rxSaveStatus === "error" ? "#e74c3c" : "#ccc" }} />
             {!online ? "Offline" : rxDirty ? "Unsaved changes" : rxSaveStatus === "saving" ? "Saving..." : rxSaveStatus === "saved" ? "Saved" : rxSaveStatus === "error" ? "Save failed" : ""}
           </div>
-          <Btn label={rxSaving ? "Saving..." : "Save Rx"} onClick={saveRxToCloud} disabled={rxSaving || !rxDirty || isActiveSigned} />
-          <Btn label={isActiveSigned ? "Signed" : "Sign Rx"} primary onClick={handleSignRx} disabled={isActiveSigned || !activePage} />
-          <Btn label={saving ? "Downloading..." : "Download"} onClick={handleDownloadRx} disabled={saving || !activePage} />
-          <Btn label="Discard Rx" danger onClick={handleDiscardRx} disabled={isActiveSigned || !activePage} title={isActiveSigned ? "A signed prescription cannot be discarded" : ""} />
-          <Btn label="+ New Rx" onClick={createNewRx} />
+          <Btn label={rxSaving ? "Saving..." : "Save Rx"} onClick={saveRxToCloud} disabled={rxSaving || !rxDirty || isActiveSigned} title={`Save prescription (${MOD}S)`} />
+          <Btn label={isActiveSigned ? "Signed" : "Sign Rx"} primary onClick={handleSignRx} disabled={isActiveSigned || !activePage} title={isActiveSigned ? "Already signed" : `Sign & lock prescription (${MOD}${IS_MAC ? "⇧" : "Shift+"}S)`} />
+          <Btn label={saving ? "Downloading..." : "Download"} onClick={handleDownloadRx} disabled={saving || !activePage} title={`Download as image (${MOD}Enter)`} />
+          <Btn label="Discard Rx" danger onClick={handleDiscardRx} disabled={isActiveSigned || !activePage} title={isActiveSigned ? "A signed prescription cannot be discarded" : `Discard prescription (${MOD}${IS_MAC ? "⌫" : "Del"})`} />
+          <Btn label="+ New Rx" onClick={createNewRx} title={`New prescription (${MOD}N)`} />
           <div onClick={openDoctorModal} title="Doctor Settings" style={{ width: 28, height: 28, borderRadius: "50%", background: B.greenT15, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={B.green} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
           </div>
@@ -2125,14 +2128,14 @@ export default function OrangeScript({ cloudDoctor }) {
           )}
         </div>
         <div style={{ padding: "10px 16px", borderTop: "1px solid #eee", background: B.lightBg }}>
-          <div style={{ fontSize: 9.5, fontWeight: 700, color: B.grey, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 4 }}>Shortcuts</div>
-          <div style={{ fontSize: 10.5, color: B.secondary, lineHeight: 1.9, fontFamily: "monospace" }}>
-            <span style={{ color: B.grey }}>⌘S</span> Save <span style={{ color: B.grey }}>⌘⇧S</span> Sign Rx <span style={{ color: B.grey }}>⌘N</span> New Rx<br />
-            <span style={{ color: B.grey }}>⌘⌫</span> Discard <span style={{ color: B.grey }}>⌘←→</span> Navigate<br />
-            <span style={{ color: B.grey }}>⌘R</span> Rx <span style={{ color: B.grey }}>⌘D</span> Diagnosis <span style={{ color: B.grey }}>⌘O</span> Tests<br />
-            <span style={{ color: B.grey }}>⌘T</span> Treatment <span style={{ color: B.grey }}>⌘F</span> Follow Up<br />
-            <span style={{ color: B.grey }}>\</span> Phrases <span style={{ color: B.grey }}>\\</span> Add Section
-          </div>
+          <button onClick={() => setShortcutsOpen(true)} style={{
+            width: "100%", padding: "7px 0", borderRadius: 6, border: "1.5px solid #e0e0e0",
+            background: "transparent", fontSize: 11, fontWeight: 600, fontFamily: "inherit",
+            cursor: "pointer", color: B.grey, display: "flex", alignItems: "center",
+            justifyContent: "center", gap: 6,
+          }}>
+            <span style={{ fontSize: 14 }}>⌨</span> Keyboard Shortcuts
+          </button>
         </div>
       </div>
       ) : (
@@ -2338,6 +2341,9 @@ export default function OrangeScript({ cloudDoctor }) {
         </div>
       </Modal>
 
+      {/* KEYBOARD SHORTCUTS MODAL */}
+      <ShortcutsModal open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
+
       {/* SIGN / DISCARD CONFIRMATION MODAL */}
       <Modal open={!!confirmAction} onClose={() => setConfirmAction(null)} title={confirmAction?.type === "sign" ? "Sign Prescription" : "Discard Prescription"}>
         <div style={{ fontSize: 13, color: B.secondary, lineHeight: 1.6, marginBottom: 16 }}>
@@ -2492,6 +2498,71 @@ function Btn({ label, primary, danger, onClick, disabled, title }) {
       color: primary ? B.white : danger ? "#e74c3c" : B.dark,
       opacity: disabled ? 0.6 : 1,
     }}>{label}</button>
+  );
+}
+
+function Kbd({ children }) {
+  return (
+    <span style={{
+      display: "inline-block", padding: "2px 7px", borderRadius: 4, fontSize: 11, fontWeight: 600,
+      fontFamily: "SFMono-Regular, Menlo, Consolas, monospace", lineHeight: 1.4,
+      background: "#f0f0f0", border: "1px solid #d4d4d4", color: B.dark,
+      boxShadow: "0 1px 0 #c0c0c0", minWidth: 20, textAlign: "center",
+    }}>{children}</span>
+  );
+}
+
+function ShortcutsModal({ open, onClose }) {
+  if (!open) return null;
+  const m = MOD;
+  const del = IS_MAC ? "⌫" : "Del";
+  const shortcuts = [
+    { group: "Prescription Actions", items: [
+      { keys: `${m}S`, label: "Save prescription" },
+      { keys: `${m}${IS_MAC ? "⇧" : "Shift+"}S`, label: "Sign prescription" },
+      { keys: `${m}N`, label: "New prescription" },
+      { keys: `${m}${del}`, label: "Discard prescription" },
+      { keys: `${m}Enter`, label: "Download prescription" },
+      { keys: `${m}← →`, label: "Navigate between prescriptions" },
+    ]},
+    { group: "Add Section", items: [
+      { keys: `${m}R`, label: "Rx" },
+      { keys: `${m}D`, label: "Diagnosis" },
+      { keys: `${m}T`, label: "Treatment" },
+      { keys: `${m}O`, label: "Tests Advised" },
+      { keys: `${m}F`, label: "Follow Up" },
+    ]},
+    { group: "In-Editor", items: [
+      { keys: "\\", label: "Open phrase picker" },
+      { keys: "\\\\", label: "Add custom section" },
+      { keys: "phrase ;", label: "Save as new phrase" },
+    ]},
+  ];
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 300, background: "rgba(0,0,0,0.35)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: B.white, borderRadius: 12, boxShadow: "0 12px 48px rgba(0,0,0,0.18)", width: 420, maxWidth: "90vw", fontFamily: FONT_UI }}>
+        <div style={{ padding: "14px 20px", borderBottom: "1px solid #eee", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <span style={{ fontSize: 14, fontWeight: 700 }}>Keyboard Shortcuts</span>
+          <span onClick={onClose} style={{ cursor: "pointer", fontSize: 18, color: B.grey, lineHeight: 1 }}>×</span>
+        </div>
+        <div style={{ padding: "12px 20px 20px", maxHeight: "70vh", overflow: "auto" }}>
+          {shortcuts.map((group, gi) => (
+            <div key={gi} style={{ marginBottom: gi < shortcuts.length - 1 ? 16 : 0 }}>
+              <div style={{ fontSize: 9.5, fontWeight: 700, color: B.grey, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 8 }}>{group.group}</div>
+              {group.items.map((item, i) => (
+                <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "5px 0", borderBottom: i < group.items.length - 1 ? "1px solid #f5f5f5" : "none" }}>
+                  <span style={{ fontSize: 12.5, color: B.secondary }}>{item.label}</span>
+                  <Kbd>{item.keys}</Kbd>
+                </div>
+              ))}
+            </div>
+          ))}
+          <div style={{ marginTop: 14, fontSize: 10, color: B.grey, textAlign: "center" }}>
+            {IS_MAC ? "Showing Mac shortcuts (⌘ = Command)" : "Showing Windows/Linux shortcuts (Ctrl)"}
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
