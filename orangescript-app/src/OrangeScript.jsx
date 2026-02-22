@@ -701,7 +701,7 @@ function Modal({ open, onClose, title, children, width }) {
 // ============================================================
 // INLINE PHRASE INPUT — with label on same line
 // ============================================================
-function InlinePhraseInput({ label, value, onChange, phrasePool, placeholder, onSavePhrase, onDeletePhrase, customPhrases, onIcdSelect }) {
+function InlinePhraseInput({ label, value, onChange, phrasePool, placeholder, onSavePhrase, onDeletePhrase, customPhrases, onIcdSelect, readOnly }) {
   const ref = useRef(null);
   const [dd, setDd] = useState({ show: false, items: [], idx: 0, startPos: 0 });
 
@@ -794,16 +794,17 @@ function InlinePhraseInput({ label, value, onChange, phrasePool, placeholder, on
         <textarea
           ref={ref}
           value={value}
-          onChange={(e) => { handleChange(e); autoResize(e.target); }}
-          onKeyDown={handleKeyDown}
-          placeholder={placeholder}
+          onChange={(e) => { if (readOnly) return; handleChange(e); autoResize(e.target); }}
+          onKeyDown={(e) => { if (readOnly) return; handleKeyDown(e); }}
+          placeholder={readOnly ? "" : placeholder}
+          readOnly={readOnly}
           rows={1}
           style={{
             width: "100%", border: "none", outline: "none", resize: "none",
             fontFamily: FONT_BODY, fontSize: 17, lineHeight: `${LINE_H}px`,
-            color: "transparent", caretColor: B.dark, background: "transparent", padding: 0, boxSizing: "border-box",
+            color: "transparent", caretColor: readOnly ? "transparent" : B.dark, background: "transparent", padding: 0, boxSizing: "border-box",
             minHeight: LINE_H, overflow: "hidden", display: "block",
-            position: "relative", zIndex: 1,
+            position: "relative", zIndex: 1, cursor: readOnly ? "default" : "text",
           }}
         />
         {dd.show && (
@@ -817,7 +818,7 @@ function InlinePhraseInput({ label, value, onChange, phrasePool, placeholder, on
 // ============================================================
 // RX EDITOR
 // ============================================================
-function RxEditor({ patient, onSave, customPhrases, onSavePhrase, onDeletePhrase, dataRef, onLiveConditions, onLiveFollowUp, initialData }) {
+function RxEditor({ patient, onSave, customPhrases, onSavePhrase, onDeletePhrase, dataRef, onLiveConditions, onLiveFollowUp, initialData, readOnly, signedAt }) {
   const [sections, setSections] = useState(() => {
     if (initialData && initialData.sections) return initialData.sections;
     return [{ id: "symptoms", label: "Symptoms", content: "" }];
@@ -1077,7 +1078,7 @@ function RxEditor({ patient, onSave, customPhrases, onSavePhrase, onDeletePhrase
         const map = { s: "symptoms", d: "diagnosis", r: "rx", t: "treatment", o: "tests", f: "followup" };
         const k = e.key.toLowerCase();
         if (map[k]) { e.preventDefault(); const def = ALL_SECTIONS.find(s => s.id === map[k]); if (def) addSection(def, focusedSecId.current); }
-        if (k === "enter") { e.preventDefault(); onSave?.(); }
+        if (k === "enter" && !readOnly) { e.preventDefault(); onSave?.(); }
       }
     };
     window.addEventListener("keydown", handler);
@@ -1125,6 +1126,7 @@ function RxEditor({ patient, onSave, customPhrases, onSavePhrase, onDeletePhrase
         onDeletePhrase={(p) => onDeletePhrase("diagnosis", p)}
         customPhrases={customPhrases.diagnosis || []}
         onIcdSelect={(name, code) => setIcdCodes(prev => ({ ...prev, [name]: code }))}
+        readOnly={readOnly}
       />
       <InlinePhraseInput
         label="Test Values:"
@@ -1135,6 +1137,7 @@ function RxEditor({ patient, onSave, customPhrases, onSavePhrase, onDeletePhrase
         onSavePhrase={(p) => onSavePhrase("tests", p)}
         onDeletePhrase={(p) => onDeletePhrase("tests", p)}
         customPhrases={customPhrases.tests || []}
+        readOnly={readOnly}
       />
 
       {/* DYNAMIC SECTIONS */}
@@ -1151,7 +1154,9 @@ function RxEditor({ patient, onSave, customPhrases, onSavePhrase, onDeletePhrase
                 ref={el => { textareaRefs.current[sec.id] = el; }}
                 value={sec.content}
                 min={getTomorrowISO()}
+                disabled={readOnly}
                 onChange={e => {
+                  if (readOnly) return;
                   const val = e.target.value;
                   if (val && val < getTomorrowISO()) {
                     setDateError(true);
@@ -1164,11 +1169,12 @@ function RxEditor({ patient, onSave, customPhrases, onSavePhrase, onDeletePhrase
                 style={{
                   border: "none", borderBottom: "1px dashed #ccc", outline: "none",
                   fontFamily: FONT_BODY, fontSize: 17, lineHeight: `${LINE_H}px`, height: LINE_H,
-                  color: B.dark, background: "transparent", padding: 0, cursor: "pointer",
+                  color: B.dark, background: "transparent", padding: 0, cursor: readOnly ? "default" : "pointer",
+                  opacity: readOnly ? 0.7 : 1,
                 }}
               />
             )}
-            <svg onClick={() => deleteSection(sec.id)} style={{ cursor: "pointer", opacity: 0.35, flexShrink: 0 }} width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={B.grey} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" title="Remove section"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+            {!readOnly && <svg onClick={() => deleteSection(sec.id)} style={{ cursor: "pointer", opacity: 0.35, flexShrink: 0 }} width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={B.grey} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" title="Remove section"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>}
           </div>
           {sec.id !== "followup" && (
           <div style={{ position: "relative" }}>
@@ -1182,17 +1188,18 @@ function RxEditor({ patient, onSave, customPhrases, onSavePhrase, onDeletePhrase
             <textarea
               ref={el => { textareaRefs.current[sec.id] = el; if (el) autoResize(el); }}
               value={sec.content}
-              onChange={e => { handleChange(sec.id, e); autoResize(e.target); }}
-              onKeyDown={e => handleKeyDown(sec.id, e)}
+              onChange={e => { if (readOnly) return; handleChange(sec.id, e); autoResize(e.target); }}
+              onKeyDown={e => { if (readOnly) return; handleKeyDown(sec.id, e); }}
               onFocus={() => { focusedSecId.current = sec.id; }}
-              placeholder="Type here or press \ for saved phrases..."
+              placeholder={readOnly ? "" : "Type here or press \\ for saved phrases..."}
+              readOnly={readOnly}
               rows={1}
               style={{
                 width: "100%", border: "none", outline: "none", resize: "none",
                 fontFamily: FONT_BODY, fontSize: 17, lineHeight: `${LINE_H}px`,
-                color: "transparent", caretColor: B.dark, background: "transparent", padding: 0,
+                color: "transparent", caretColor: readOnly ? "transparent" : B.dark, background: "transparent", padding: 0,
                 minHeight: LINE_H, overflow: "hidden", boxSizing: "border-box", display: "block",
-                position: "relative", zIndex: 1,
+                position: "relative", zIndex: 1, cursor: readOnly ? "default" : "text",
               }}
             />
             {dropdown.show && dropdown.secId === sec.id && (
@@ -1215,6 +1222,21 @@ function RxEditor({ patient, onSave, customPhrases, onSavePhrase, onDeletePhrase
           <button onClick={() => setDateError(false)} style={{ padding: "6px 18px", borderRadius: 6, border: "none", background: B.orange, color: B.white, fontSize: 12, fontWeight: 600, fontFamily: "inherit", cursor: "pointer" }}>OK</button>
         </div>
       </Modal>
+
+      {/* Signed stamp overlay */}
+      {readOnly && signedAt && (
+        <div style={{
+          position: "absolute", bottom: 24, right: 32,
+          border: `3px solid ${B.green}`, borderRadius: 8, padding: "8px 18px",
+          color: B.green, fontWeight: 700, fontSize: 11, fontFamily: FONT_UI,
+          transform: "rotate(-5deg)", opacity: 0.65, pointerEvents: "none",
+          textAlign: "center", lineHeight: 1.5, background: "rgba(255,255,255,0.85)",
+          zIndex: 5,
+        }}>
+          SIGNED<br />
+          {new Date(signedAt).toLocaleString("en-IN", { timeZone: "Asia/Kolkata", day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+        </div>
+      )}
     </div>
   );
 }
@@ -1285,6 +1307,8 @@ export default function OrangeScript({ cloudDoctor }) {
             customSections: rx.custom_sections || [],
           },
           saved: true,
+          signed: !!rx.signed_at,
+          signedAt: rx.signed_at || null,
           createdAt: rx.created_at,
         }));
 
@@ -1315,7 +1339,7 @@ export default function OrangeScript({ cloudDoctor }) {
         }));
       } else {
         // No prescriptions — create a blank page
-        const blankPage = { id: Date.now(), patientId, data: null, saved: false, createdAt: new Date().toISOString() };
+        const blankPage = { id: Date.now(), patientId, data: null, saved: false, signed: false, signedAt: null, createdAt: new Date().toISOString() };
         setRxPages(prev => {
           const otherPages = prev.filter(pg => pg.patientId !== patientId);
           return [...otherPages, blankPage];
@@ -1326,7 +1350,7 @@ export default function OrangeScript({ cloudDoctor }) {
     } catch (err) {
       console.error("Failed to load prescriptions for patient:", err);
       // Fallback: create a blank page
-      const blankPage = { id: Date.now(), patientId, data: null, saved: false, createdAt: new Date().toISOString() };
+      const blankPage = { id: Date.now(), patientId, data: null, saved: false, signed: false, signedAt: null, createdAt: new Date().toISOString() };
       setRxPages(prev => {
         const otherPages = prev.filter(pg => pg.patientId !== patientId);
         return [...otherPages, blankPage];
@@ -1629,6 +1653,7 @@ export default function OrangeScript({ cloudDoctor }) {
   const patientPages = useMemo(() => patient ? rxPages.filter(p => p.patientId === patient.id) : [], [rxPages, patient]);
   const activePage = patientPages.find(p => p.id === activePageId) || patientPages[patientPages.length - 1] || null;
   const activePatientIdx = patientPages.indexOf(activePage);
+  const isActiveSigned = activePage?.signed === true;
 
   // ── Rx Page Management ──
   const snapshotCurrentPage = useCallback(() => {
@@ -1644,7 +1669,7 @@ export default function OrangeScript({ cloudDoctor }) {
     const carryConditions = currentRxConditions || liveConditions || patient.knownConditions || patient.conditions.join(", ");
     snapshotCurrentPage();
     const newPage = {
-      id: Date.now(), patientId: patient.id, saved: false, createdAt: new Date().toISOString(),
+      id: Date.now(), patientId: patient.id, saved: false, signed: false, signedAt: null, createdAt: new Date().toISOString(),
       data: carryConditions ? { knownConditions: carryConditions } : null,
     };
     setRxPages(prev => [...prev, newPage]);
@@ -1782,6 +1807,9 @@ export default function OrangeScript({ cloudDoctor }) {
   // Updates existing prescription if one exists, creates new if not
   const saveRxToCloud = useCallback(async () => {
     if (!doctorId || !patient || !patient.id) return;
+    // Don't save signed prescriptions
+    const currentPage = rxPages.find(p => p.id === activePageId);
+    if (currentPage?.signed) return;
     const data = rxDataRef.current;
     if (!data || !data.sections) return;
     const secs = (data.sections || []).filter(s => s.content && s.content.trim());
@@ -1843,7 +1871,7 @@ export default function OrangeScript({ cloudDoctor }) {
     } finally {
       setRxSaving(false);
     }
-  }, [doctorId, patient, getRxSnapshot]);
+  }, [doctorId, patient, getRxSnapshot, rxPages, activePageId]);
 
   // Auto-save every 15 seconds if dirty
   useEffect(() => {
@@ -1861,84 +1889,125 @@ export default function OrangeScript({ cloudDoctor }) {
     }
   }, [dataLoaded, getRxSnapshot]);
 
-  const handleSave = useCallback(async () => {
+
+  // ── Confirmation modal state (for Sign / Discard) ──
+  const [confirmAction, setConfirmAction] = useState(null); // { type: "sign"|"discard", message, onConfirm }
+
+  // ── Sign Rx — makes a prescription permanent and read-only ──
+  const handleSignRx = useCallback(async () => {
+    if (!patient || !activePage) return;
+    if (activePage.signed) { showToast("Already signed"); return; }
+
+    // If there are unsaved changes, save first
+    if (rxDirty || !currentRxIdRef.current) {
+      await saveRxToCloud();
+      // Small delay to let the save complete
+      await new Promise(r => setTimeout(r, 500));
+    }
+
+    if (!currentRxIdRef.current) {
+      showToast("Please save the prescription first");
+      return;
+    }
+
+    setConfirmAction({
+      type: "sign",
+      message: "Once signed, this prescription cannot be edited or discarded. Continue?",
+      onConfirm: async () => {
+        try {
+          const result = await db.signPrescription(currentRxIdRef.current);
+          setRxPages(prev => prev.map(p =>
+            p.id === activePageId ? { ...p, signed: true, signedAt: result.signed_at } : p
+          ));
+          showToast("Prescription signed");
+        } catch (e) {
+          console.error("Sign Rx failed:", e);
+          showToast("Failed to sign prescription");
+        }
+        setConfirmAction(null);
+      },
+    });
+  }, [patient, activePage, activePageId, rxDirty, saveRxToCloud, showToast]);
+
+  // ── Download Rx — generates image and downloads it ──
+  const handleDownloadRx = useCallback(async () => {
     if (!patient) { showToast("No patient selected"); return; }
     const data = rxDataRef.current;
-    if (!data.pName) { showToast("No patient data to save"); return; }
+    if (!data.pName) { showToast("No patient data to download"); return; }
 
     setSaving(true);
-
     try {
       const secs = (data.sections || []).filter(s => s.content.trim());
-      // Ensure fonts (especially Great Vibes for signature) are loaded
       if (document.fonts && document.fonts.ready) await document.fonts.ready;
       const canvas = drawPrescriptionImage(data, secs, doctor);
       const fileName = `Rx_${data.pName.replace(/\s+/g, "_")}_${new Date().toISOString().split("T")[0]}.png`;
-      const result = await shareImage(canvas, fileName, data.pName);
 
-      // Store prescription record
-      const followUpSec = (data.sections || []).find(s => s.id === "followup");
-      const rxRecord = {
-        patientId: patient.id,
-        date: new Date().toISOString(),
-        followUpText: followUpSec ? followUpSec.content.trim() : "",
-        sections: (data.sections || []).map(s => ({ id: s.id, label: s.label })),
-        icdCodes: data.icdCodes || {},
-      };
-      setSavedRxs(prev => [...prev, rxRecord]);
-      // Mark current page as saved
-      setRxPages(prev => prev.map(p => p.id === activePageId ? { ...p, saved: true, data: { ...rxDataRef.current } } : p));
-
-      // Sync prescription to Supabase (update existing or create new)
-      if (doctorId && patient.id) {
-        const followUpDate = followUpSec?.content.trim().match(/^\d{4}-\d{2}-\d{2}$/) ? followUpSec.content.trim() : null;
-        const rxPayload = {
-          sections: (data.sections || []).map(s => ({ id: s.id, label: s.label, content: s.content })),
-          icdCodes: data.icdCodes || {},
-          knownConditions: data.knownConditions || "",
-          testValues: data.testValues || "",
-          customSections: data.customSections || [],
-          followUpDate,
-        };
-        try {
-          if (currentRxIdRef.current) {
-            await db.updatePrescription(currentRxIdRef.current, rxPayload);
-          } else {
-            const newRx = await db.createPrescription(doctorId, patient.id, rxPayload);
-            if (newRx && newRx.id) {
-              currentRxIdRef.current = newRx.id;
-              setRxPages(prev => prev.map(p => p.id === activePageId ? { ...p, supabaseRxId: newRx.id } : p));
-            }
-          }
-          // Sync known_conditions to patient record
-          const currentConditions = data.knownConditions || "";
-          if (currentConditions !== (patient.knownConditions || "")) {
-            db.updatePatientConditions(doctorId, patient.id, currentConditions).then(() => {
-              const updatedPatient = { ...patient, knownConditions: currentConditions, conditions: currentConditions ? currentConditions.split(",").map(c => c.trim()).filter(Boolean) : [] };
-              setPatient(updatedPatient);
-              lsSet("activePatient", updatedPatient);
-              setPatients(prev => prev.map(p => p.id === patient.id ? updatedPatient : p));
-            }).catch(e => console.error("Failed to sync patient conditions:", e));
-          }
-          // Update saved snapshot so auto-save doesn't re-save the same data
-          lastSavedSnapshotRef.current = getRxSnapshot();
-          setRxDirty(false);
-          setRxSaveStatus("saved");
-          setSyncStatus("synced");
-          setTimeout(() => { setRxSaveStatus("idle"); setSyncStatus("idle"); }, 3000);
-        } catch (e) { console.error("Cloud prescription save failed:", e); }
-      }
-
-      if (result === "shared") showToast("Prescription shared for " + data.pName);
-      else if (result === "downloaded") showToast("Prescription downloaded for " + data.pName);
-      else if (result === "cancelled") showToast("Share cancelled");
+      // Direct download
+      canvas.toBlob((blob) => {
+        if (!blob) { showToast("Error generating image"); setSaving(false); return; }
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        showToast("Prescription downloaded");
+        setSaving(false);
+      }, "image/png");
     } catch (err) {
-      console.error("Prescription generation error:", err);
-      showToast("Error generating prescription — please try again");
-    } finally {
+      console.error("Download error:", err);
+      showToast("Error downloading prescription");
       setSaving(false);
     }
-  }, [showToast, activePageId, doctor, doctorId, patient, getRxSnapshot]);
+  }, [showToast, doctor, patient]);
+
+  // ── Discard Rx — delete unsigned prescription ──
+  const handleDiscardRx = useCallback(() => {
+    if (!patient || !activePage) return;
+    if (activePage.signed) return; // Cannot discard signed Rx
+
+    setConfirmAction({
+      type: "discard",
+      message: "Discard this prescription? This cannot be undone.",
+      onConfirm: async () => {
+        try {
+          // Delete from Supabase if it has a DB record
+          if (currentRxIdRef.current) {
+            await db.deletePrescription(currentRxIdRef.current);
+          }
+          // Remove page from rxPages
+          setRxPages(prev => {
+            const remaining = prev.filter(p => p.id !== activePageId);
+            // If no pages left for this patient, create a blank one
+            const patientRemaining = remaining.filter(p => p.patientId === patient.id);
+            if (patientRemaining.length === 0) {
+              const blankPage = { id: Date.now(), patientId: patient.id, data: null, saved: false, signed: false, signedAt: null, createdAt: new Date().toISOString() };
+              setActivePageId(blankPage.id);
+              currentRxIdRef.current = null;
+              lastSavedSnapshotRef.current = null;
+              setRxDirty(false);
+              return [...remaining, blankPage];
+            }
+            // Navigate to adjacent page
+            const lastPatientPage = patientRemaining[patientRemaining.length - 1];
+            setActivePageId(lastPatientPage.id);
+            currentRxIdRef.current = lastPatientPage.supabaseRxId || null;
+            lastSavedSnapshotRef.current = null;
+            setRxDirty(false);
+            return remaining;
+          });
+          showToast("Prescription discarded");
+        } catch (e) {
+          console.error("Discard Rx failed:", e);
+          showToast("Failed to discard prescription");
+        }
+        setConfirmAction(null);
+      },
+    });
+  }, [patient, activePage, activePageId, showToast]);
+
   const toggleCard = (k) => setOpenCards(c => ({ ...c, [k]: !c[k] }));
 
   return (
@@ -1966,9 +2035,11 @@ export default function OrangeScript({ cloudDoctor }) {
             <div style={{ width: 7, height: 7, borderRadius: "50%", background: !online ? "#e74c3c" : rxDirty ? B.orange : rxSaveStatus === "saving" ? B.orange : rxSaveStatus === "saved" ? B.green : rxSaveStatus === "error" ? "#e74c3c" : "#ccc" }} />
             {!online ? "Offline" : rxDirty ? "Unsaved changes" : rxSaveStatus === "saving" ? "Saving..." : rxSaveStatus === "saved" ? "Saved" : rxSaveStatus === "error" ? "Save failed" : ""}
           </div>
-          <Btn label={rxSaving ? "Saving..." : "Save Rx"} onClick={saveRxToCloud} disabled={rxSaving || !rxDirty} />
+          <Btn label={rxSaving ? "Saving..." : "Save Rx"} onClick={saveRxToCloud} disabled={rxSaving || !rxDirty || isActiveSigned} />
+          <Btn label={isActiveSigned ? "Signed" : "Sign Rx"} primary onClick={handleSignRx} disabled={isActiveSigned || !activePage} />
+          <Btn label={saving ? "Downloading..." : "Download"} onClick={handleDownloadRx} disabled={saving || !activePage} />
+          <Btn label="Discard Rx" danger onClick={handleDiscardRx} disabled={isActiveSigned || !activePage} title={isActiveSigned ? "A signed prescription cannot be discarded" : ""} />
           <Btn label="+ New Rx" onClick={createNewRx} />
-          <Btn label={saving ? "Generating..." : "Print Rx"} primary onClick={handleSave} disabled={saving} />
           <div onClick={openDoctorModal} title="Doctor Settings" style={{ width: 28, height: 28, borderRadius: "50%", background: B.greenT15, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={B.green} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
           </div>
@@ -2074,7 +2145,7 @@ export default function OrangeScript({ cloudDoctor }) {
                   </div>
                 </div>
                 <div style={{ flex: 1, overflow: "auto" }}>
-                  <RxEditor key={activePage.id} patient={patient} initialData={activePage.data} onSave={handleSave} customPhrases={customPhrases} onSavePhrase={savePhrase} onDeletePhrase={deletePhrase} dataRef={rxDataRef} onLiveConditions={setLiveConditions} onLiveFollowUp={setLiveFollowUp} />
+                  <RxEditor key={activePage.id} patient={patient} initialData={activePage.data} onSave={handleDownloadRx} customPhrases={customPhrases} onSavePhrase={savePhrase} onDeletePhrase={deletePhrase} dataRef={rxDataRef} onLiveConditions={setLiveConditions} onLiveFollowUp={setLiveFollowUp} readOnly={isActiveSigned} signedAt={activePage?.signedAt} />
                 </div>
               </div>
               {/* Carousel — per-patient pages only */}
@@ -2089,7 +2160,7 @@ export default function OrangeScript({ cloudDoctor }) {
                 {patientPages.map((page, i) => (
                   <button key={page.id} onClick={() => { if (i !== activePatientIdx) { snapshotCurrentPage(); navigatePage(i - activePatientIdx); } }} style={{
                     width: i === activePatientIdx ? 22 : 10, height: 10, borderRadius: 5, border: "none", cursor: "pointer",
-                    background: i === activePatientIdx ? B.orange : page.saved ? B.green : "#d0ccc4", transition: "all 0.25s",
+                    background: i === activePatientIdx ? B.orange : page.signed ? B.green : page.saved ? "#a0d8c0" : "#d0ccc4", transition: "all 0.25s",
                     position: "relative",
                   }}>
                     {i === activePatientIdx && <span style={{ position: "absolute", top: -16, left: "50%", transform: "translateX(-50%)", fontSize: 8, fontWeight: 700, color: B.grey, whiteSpace: "nowrap", fontFamily: FONT_UI }}>{i + 1}/{patientPages.length}</span>}
@@ -2254,6 +2325,19 @@ export default function OrangeScript({ cloudDoctor }) {
         </div>
       </Modal>
 
+      {/* SIGN / DISCARD CONFIRMATION MODAL */}
+      <Modal open={!!confirmAction} onClose={() => setConfirmAction(null)} title={confirmAction?.type === "sign" ? "Sign Prescription" : "Discard Prescription"}>
+        <div style={{ fontSize: 13, color: B.secondary, lineHeight: 1.6, marginBottom: 16 }}>
+          {confirmAction?.message}
+        </div>
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+          <button onClick={() => setConfirmAction(null)} style={{ padding: "7px 16px", borderRadius: 6, border: "1.5px solid #ddd", background: "transparent", fontSize: 12, fontWeight: 600, fontFamily: "inherit", cursor: "pointer", color: B.dark }}>Cancel</button>
+          <button onClick={confirmAction?.onConfirm} style={{ padding: "7px 16px", borderRadius: 6, border: "none", background: confirmAction?.type === "sign" ? B.orange : "#e74c3c", fontSize: 12, fontWeight: 600, fontFamily: "inherit", cursor: "pointer", color: B.white }}>
+            {confirmAction?.type === "sign" ? "Sign" : "Discard"}
+          </button>
+        </div>
+      </Modal>
+
       {/* EDIT PATIENT MODAL */}
       <Modal open={!!editModal} onClose={() => setEditModal(null)} title="Edit Patient Details" width={420}>
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -2385,14 +2469,14 @@ export default function OrangeScript({ cloudDoctor }) {
   );
 }
 
-function Btn({ label, primary, onClick, disabled }) {
+function Btn({ label, primary, danger, onClick, disabled, title }) {
   return (
-    <button onClick={onClick} disabled={disabled} style={{
+    <button onClick={onClick} disabled={disabled} title={title} style={{
       padding: "5px 13px", borderRadius: 6, fontSize: 12, fontWeight: 600,
       fontFamily: "inherit", cursor: disabled ? "not-allowed" : "pointer",
-      border: primary ? "none" : "1.5px solid #ddd",
+      border: primary ? "none" : danger ? "1.5px solid #e74c3c" : "1.5px solid #ddd",
       background: primary ? B.orange : "transparent",
-      color: primary ? B.white : B.dark,
+      color: primary ? B.white : danger ? "#e74c3c" : B.dark,
       opacity: disabled ? 0.6 : 1,
     }}>{label}</button>
   );

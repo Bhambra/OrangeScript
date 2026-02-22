@@ -157,6 +157,29 @@ export async function createPrescription(doctorId, patientId, rxData) {
   return data;
 }
 
+/** Sign a prescription (sets signed_at timestamp). Returns the updated row. */
+export async function signPrescription(prescriptionId) {
+  const { data, error } = await supabase
+    .from("prescriptions")
+    .update({ signed_at: new Date().toISOString() })
+    .eq("id", prescriptionId)
+    .select()
+    .single();
+
+  if (error) { console.error("signPrescription error:", error); throw error; }
+  return data;
+}
+
+/** Delete a prescription by ID */
+export async function deletePrescription(prescriptionId) {
+  const { error } = await supabase
+    .from("prescriptions")
+    .delete()
+    .eq("id", prescriptionId);
+
+  if (error) { console.error("deletePrescription error:", error); throw error; }
+}
+
 /** Update an existing prescription record */
 export async function updatePrescription(prescriptionId, rxData) {
   const { data, error } = await supabase
