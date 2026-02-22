@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useAuth } from "./lib/AuthContext.jsx";
+import * as db from "./lib/supabaseData.js";
 
 const B = {
   orange: "#F7941D", green: "#17A578", grey: "#616262", dark: "#333333",
@@ -285,52 +286,6 @@ function usePersistedState(key, fallback) {
     });
   }, [key]);
   return [state, setAndPersist];
-}
-
-// Mock server sync — replace with real API calls
-function syncToServer(payload) {
-  return new Promise((resolve) => {
-    console.log("[OrangeScript Sync]", payload.event, payload);
-    setTimeout(resolve, 200);
-  });
-}
-
-function useSyncQueue() {
-  const queue = useRef([]);
-  const syncing = useRef(false);
-  const [syncStatus, setSyncStatus] = useState("idle"); // idle | syncing | synced | error | offline
-
-  const enqueue = useCallback((event, data) => {
-    queue.current.push({ event, data, ts: Date.now() });
-  }, []);
-
-  const flush = useCallback(async () => {
-    if (syncing.current || queue.current.length === 0) return;
-    if (!navigator.onLine) { setSyncStatus("offline"); return; }
-    syncing.current = true;
-    setSyncStatus("syncing");
-    try {
-      const batch = [...queue.current];
-      queue.current = [];
-      await syncToServer({ event: "batch", items: batch });
-      setSyncStatus("synced");
-      setTimeout(() => setSyncStatus("idle"), 3000);
-    } catch {
-      setSyncStatus("error");
-      setTimeout(() => setSyncStatus("idle"), 5000);
-    } finally {
-      syncing.current = false;
-    }
-  }, []);
-
-  const flushBeacon = useCallback(() => {
-    if (queue.current.length === 0) return;
-    const payload = JSON.stringify({ event: "batch", items: queue.current });
-    queue.current = [];
-    try { navigator.sendBeacon("/api/sync", new Blob([payload], { type: "application/json" })); } catch {}
-  }, []);
-
-  return { enqueue, flush, flushBeacon, syncStatus, pendingCount: queue.current.length };
 }
 
 function useOnlineStatus() {
@@ -1268,7 +1223,10 @@ function RxEditor({ patient, onSave, customPhrases, onSavePhrase, onDeletePhrase
 // MAIN APP
 // ============================================================
 export default function OrangeScript({ cloudDoctor }) {
-  const { signOut, saveDoctorProfile: saveProfileToCloud } = useAuth();
+  const { signOut, saveDoctorProfile: saveProfileToCloud, user } = useAuth();
+  const doctorId = user?.id;
+  const noteIdMapRef = useRef({});
+  const [dataLoaded, setDataLoaded] = useState(false);
   const [patients, setPatients] = usePersistedState("patients", [...PATIENTS]);
   const [patient, setPatient] = useState(() => {
     const saved = lsGet("activePatient", null);
@@ -1303,7 +1261,84 @@ export default function OrangeScript({ cloudDoctor }) {
   const [savedTemplates, setSavedTemplates] = usePersistedState("savedTemplates", []);
   const [templateModal, setTemplateModal] = useState(null); // { name, sections, testValues, icdCodes, customSections }
   const online = useOnlineStatus();
-  const { enqueue, flush, flushBeacon, syncStatus } = useSyncQueue();
+  const [syncStatus, setSyncStatus] = useState("idle");
+
+  // ── Load all data from Supabase on mount ──
+  useEffect(() => {
+    if (!doctorId) return;
+    let cancelled = false;
+
+    async function loadAllData() {
+      try {
+        const [dbPatients, dbPrescriptions, dbTemplates, dbPhrases, dbNotes] = await Promise.all([
+          db.fetchDoctorPatients(doctorId),
+          db.fetchPrescriptions(doctorId),
+          db.fetchTemplates(doctorId),
+          db.fetchCustomPhrases(doctorId),
+          db.fetchPatientNotes(doctorId),
+        ]);
+
+        if (cancelled) return;
+
+        // Patients
+        if (dbPatients.length > 0) {
+          setPatients(dbPatients);
+          // Select first patient if none selected
+          const activeP = lsGet("activePatient", null);
+          const matchedP = activeP ? dbPatients.find(p => p.id === activeP.id) : null;
+          if (!matchedP && dbPatients.length > 0) {
+            setPatient(dbPatients[0]);
+            lsSet("activePatient", dbPatients[0]);
+          }
+        }
+
+        // Prescriptions
+        if (dbPrescriptions.length > 0) {
+          const mapped = dbPrescriptions.map(rx => ({
+            id: rx.id,
+            patientId: rx.patient_id,
+            date: rx.created_at,
+            followUpText: rx.follow_up_date || "",
+            sections: rx.sections || [],
+            icdCodes: rx.icd_codes || {},
+            knownConditions: rx.known_conditions || "",
+            testValues: rx.test_values || "",
+          }));
+          setSavedRxs(mapped);
+        }
+
+        // Templates
+        if (dbTemplates.length > 0) {
+          const mapped = dbTemplates.map(t => ({
+            id: t.id,
+            name: t.name,
+            sections: t.sections || [],
+            testValues: t.test_values || "",
+            icdCodes: t.icd_codes || {},
+            customSections: t.custom_sections || [],
+          }));
+          setSavedTemplates(mapped);
+        }
+
+        // Custom Phrases
+        const phraseMap = db.groupPhrasesBySection(dbPhrases);
+        if (Object.keys(phraseMap).length > 0) setCustomPhrases(phraseMap);
+
+        // Patient Notes
+        const { noteMap, idMap } = db.groupNotesByPatient(dbNotes);
+        if (Object.keys(noteMap).length > 0) setPatientNotes(noteMap);
+        noteIdMapRef.current = idMap;
+
+        setDataLoaded(true);
+      } catch (err) {
+        console.error("Failed to load data from Supabase:", err);
+        setDataLoaded(true); // Fall back to localStorage
+      }
+    }
+
+    loadAllData();
+    return () => { cancelled = true; };
+  }, [doctorId]);
 
   // Persist active patient selection
   const selectPatient = useCallback((p) => {
@@ -1330,36 +1365,23 @@ export default function OrangeScript({ cloudDoctor }) {
     });
   }, [activePageId]);
 
-  // beforeunload + visibilitychange — flush sync queue
-  useEffect(() => {
-    const handleUnload = () => flushBeacon();
-    const handleVisibility = () => { if (document.visibilityState === "hidden") flushBeacon(); };
-    window.addEventListener("beforeunload", handleUnload);
-    document.addEventListener("visibilitychange", handleVisibility);
-    return () => {
-      window.removeEventListener("beforeunload", handleUnload);
-      document.removeEventListener("visibilitychange", handleVisibility);
-    };
-  }, [flushBeacon]);
-
-  // Flush queue when coming back online
-  useEffect(() => { if (online) flush(); }, [online, flush]);
-
   const savePhrase = useCallback((secId, phrase) => {
     setCustomPhrases(prev => {
       const existing = prev[secId] || [];
       if (existing.includes(phrase)) return prev;
       return { ...prev, [secId]: [...existing, phrase] };
     });
-  }, []);
+    if (doctorId) db.createPhrase(doctorId, secId, phrase).catch(e => console.error("Cloud phrase save failed:", e));
+  }, [doctorId]);
 
   const deletePhrase = useCallback((secId, phrase) => {
+    const text = typeof phrase === "object" ? phrase.name : phrase;
     setCustomPhrases(prev => {
       const existing = prev[secId] || [];
-      const text = typeof phrase === "object" ? phrase.name : phrase;
       return { ...prev, [secId]: existing.filter(p => p !== text) };
     });
-  }, []);
+    if (doctorId) db.deletePhrase(doctorId, secId, text).catch(e => console.error("Cloud phrase delete failed:", e));
+  }, [doctorId]);
 
   const filteredPatients = useMemo(() => {
     if (!search) return patients;
@@ -1405,14 +1427,28 @@ export default function OrangeScript({ cloudDoctor }) {
     const updated = { ...editModal, name: editForm.name, age: Number(editForm.age) || editModal.age, gender: editForm.gender, dob: editForm.dob, phone: editForm.phone, email: editForm.email };
     setPatients(prev => prev.map(p => p.id === updated.id ? updated : p));
     if (patient && patient.id === updated.id) selectPatient(updated);
-    enqueue("patient_updated", updated);
     setEditModal(null);
+    // Sync to Supabase
+    if (doctorId && typeof updated.id === "string") {
+      db.updatePatient(updated.id, { name: updated.name, gender: updated.gender, dob: updated.dob, age: updated.age, phone: updated.phone, email: updated.email })
+        .catch(e => console.error("Cloud patient update failed:", e));
+    }
   };
 
-  const confirmAdd = () => {
+  const confirmAdd = async () => {
     if (!editForm.name.trim()) return;
+    // Try to create in Supabase first to get UUID
+    let patientUUID = null;
+    if (doctorId) {
+      try {
+        patientUUID = await db.createPatient(doctorId, {
+          name: editForm.name.trim(), gender: editForm.gender || "M", dob: editForm.dob || null,
+          age: Number(editForm.age) || 0, phone: editForm.phone.trim(), email: editForm.email.trim(),
+        });
+      } catch (e) { console.error("Cloud patient create failed:", e); }
+    }
     const newPatient = {
-      id: Date.now(),
+      id: patientUUID || Date.now(),
       name: editForm.name.trim(),
       age: Number(editForm.age) || 0,
       gender: editForm.gender || "M",
@@ -1425,7 +1461,6 @@ export default function OrangeScript({ cloudDoctor }) {
     };
     setPatients(prev => [newPatient, ...prev]);
     selectPatient(newPatient);
-    enqueue("patient_added", newPatient);
     setAddModal(false);
   };
 
@@ -1440,8 +1475,11 @@ export default function OrangeScript({ cloudDoctor }) {
       }
       return next;
     });
-    enqueue("patient_deleted", { id: deletedId });
     setDeleteModal(null);
+    // Unlink from Supabase
+    if (doctorId && typeof deletedId === "string") {
+      db.deletePatientLink(doctorId, deletedId).catch(e => console.error("Cloud patient unlink failed:", e));
+    }
   };
 
   // ── Template Management ──
@@ -1478,15 +1516,22 @@ export default function OrangeScript({ cloudDoctor }) {
     if (templateModal.editId) {
       // Update existing template
       setSavedTemplates(prev => prev.map(t => t.id === templateModal.editId ? { ...t, ...tplData } : t));
-      enqueue("template_updated", { id: templateModal.editId, name: tplData.name });
+      if (doctorId && typeof templateModal.editId === "string") {
+        db.updateTemplate(templateModal.editId, tplData).catch(e => console.error("Cloud template update failed:", e));
+      }
     } else {
       // Create new template
-      const tpl = { id: Date.now(), ...tplData };
+      const localId = Date.now();
+      const tpl = { id: localId, ...tplData };
       setSavedTemplates(prev => [...prev, tpl]);
-      enqueue("template_saved", { id: tpl.id, name: tpl.name });
+      if (doctorId) {
+        db.createTemplate(doctorId, tplData).then(dbTpl => {
+          if (dbTpl) setSavedTemplates(prev => prev.map(t => t.id === localId ? { ...t, id: dbTpl.id } : t));
+        }).catch(e => console.error("Cloud template create failed:", e));
+      }
     }
     setTemplateModal(null);
-  }, [templateModal, setSavedTemplates, enqueue]);
+  }, [templateModal, setSavedTemplates, doctorId]);
 
   const openEditTemplateModal = useCallback((tpl) => {
     setTemplateModal({
@@ -1501,7 +1546,10 @@ export default function OrangeScript({ cloudDoctor }) {
 
   const deleteTemplate = useCallback((tplId) => {
     setSavedTemplates(prev => prev.filter(t => t.id !== tplId));
-  }, [setSavedTemplates]);
+    if (doctorId && typeof tplId === "string") {
+      db.deleteTemplate(tplId).catch(e => console.error("Cloud template delete failed:", e));
+    }
+  }, [setSavedTemplates, doctorId]);
 
   const applyTemplate = useCallback((tpl) => {
     // Snapshot current page, then overwrite with template data and remount
@@ -1609,15 +1657,35 @@ export default function OrangeScript({ cloudDoctor }) {
     if (!trimmed) return;
     setPatientNotes(prev => ({ ...prev, [patient.id]: [...(prev[patient.id] || []), trimmed] }));
     setNoteInput("");
-  }, [patient, setPatientNotes]);
+    // Sync to Supabase
+    if (doctorId && typeof patient.id === "string") {
+      db.createNote(doctorId, patient.id, trimmed).then(noteRow => {
+        if (noteRow) {
+          noteIdMapRef.current = {
+            ...noteIdMapRef.current,
+            [patient.id]: [...(noteIdMapRef.current[patient.id] || []), noteRow.id],
+          };
+        }
+      }).catch(e => console.error("Cloud note create failed:", e));
+    }
+  }, [patient, setPatientNotes, doctorId]);
 
   const deleteNote = useCallback((idx) => {
     if (!patient) return;
+    const noteUUID = noteIdMapRef.current[patient.id]?.[idx];
     setPatientNotes(prev => {
       const list = [...(prev[patient.id] || [])];
       list.splice(idx, 1);
       return { ...prev, [patient.id]: list };
     });
+    // Update UUID tracker
+    if (noteIdMapRef.current[patient.id]) {
+      const uuids = [...noteIdMapRef.current[patient.id]];
+      uuids.splice(idx, 1);
+      noteIdMapRef.current = { ...noteIdMapRef.current, [patient.id]: uuids };
+    }
+    // Delete from Supabase
+    if (noteUUID) db.deleteNote(noteUUID).catch(e => console.error("Cloud note delete failed:", e));
   }, [patient, setPatientNotes]);
 
   const showToast = useCallback((msg) => {
@@ -1653,8 +1721,19 @@ export default function OrangeScript({ cloudDoctor }) {
       setSavedRxs(prev => [...prev, rxRecord]);
       // Mark current page as saved
       setRxPages(prev => prev.map(p => p.id === activePageId ? { ...p, saved: true, data: { ...rxDataRef.current } } : p));
-      enqueue("prescription_saved", { patient: data.pName, sections: (data.sections || []).map(s => s.label), date: data.date, icdCodes: data.icdCodes || {} });
-      flush();
+
+      // Sync prescription to Supabase (with FULL section content)
+      if (doctorId && typeof patient.id === "string") {
+        const followUpDate = followUpSec?.content.trim().match(/^\d{4}-\d{2}-\d{2}$/) ? followUpSec.content.trim() : null;
+        db.createPrescription(doctorId, patient.id, {
+          sections: (data.sections || []).map(s => ({ id: s.id, label: s.label, content: s.content })),
+          icdCodes: data.icdCodes || {},
+          knownConditions: data.knownConditions || "",
+          testValues: data.testValues || "",
+          customSections: data.customSections || [],
+          followUpDate,
+        }).catch(e => console.error("Cloud prescription save failed:", e));
+      }
 
       if (result === "shared") showToast("Prescription shared for " + data.pName);
       else if (result === "downloaded") showToast("Prescription downloaded for " + data.pName);
@@ -1665,7 +1744,7 @@ export default function OrangeScript({ cloudDoctor }) {
     } finally {
       setSaving(false);
     }
-  }, [enqueue, flush, showToast, activePageId, doctor]);
+  }, [showToast, activePageId, doctor, doctorId, patient]);
   const toggleCard = (k) => setOpenCards(c => ({ ...c, [k]: !c[k] }));
 
   return (
