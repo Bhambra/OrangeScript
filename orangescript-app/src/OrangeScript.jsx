@@ -1295,9 +1295,11 @@ export default function OrangeScript({ cloudDoctor }) {
         setActivePageId(lastPage.id);
         currentRxIdRef.current = lastPage.supabaseRxId || null;
 
-        // Sync latest Rx known_conditions → patient record if they differ
+        // Sync latest Rx known_conditions → patient record and liveConditions
         const latestRx = dbRxs[dbRxs.length - 1]; // newest (ascending order)
         const latestConditions = latestRx.known_conditions || "";
+        // Immediately update liveConditions so Summary Status shows them
+        if (latestConditions) setLiveConditions(latestConditions);
         setPatients(prev => prev.map(p => {
           if (p.id !== patientId) return p;
           if (p.knownConditions === latestConditions) return p;
@@ -1644,6 +1646,8 @@ export default function OrangeScript({ cloudDoctor }) {
     };
     setRxPages(prev => [...prev, newPage]);
     setActivePageId(newPage.id);
+    // Explicitly carry liveConditions so Summary Status shows them immediately
+    setLiveConditions(carryConditions);
     setLiveFollowUp("");
     currentRxIdRef.current = null; // New Rx = no existing Supabase record yet
     lastSavedSnapshotRef.current = null;
@@ -2130,12 +2134,8 @@ export default function OrangeScript({ cloudDoctor }) {
         <div style={{ flex: 1, overflow: "auto", padding: "0 0 14px" }}>
           <Card title="Summary Status" color="orange" open={openCards.summary} toggle={() => toggleCard("summary")}>
             {(() => {
-              // Conditions linked to the LAST (newest) prescription for this patient
-              const isOnLastPage = activePatientIdx === patientPages.length - 1;
-              const lastPage = patientPages[patientPages.length - 1];
-              const rawConditions = isOnLastPage
-                ? liveConditions
-                : (lastPage && lastPage.data ? lastPage.data.knownConditions : patient.conditions.join(", "));
+              // Conditions: prefer live from active Rx, then patient DB record
+              const rawConditions = liveConditions || patient.knownConditions || patient.conditions.join(", ");
               const conditions = rawConditions ? rawConditions.split(",").map(c => c.trim()).filter(Boolean) : [];
               return conditions.length > 0 && (
                 <div style={{ marginBottom: 10 }}>
