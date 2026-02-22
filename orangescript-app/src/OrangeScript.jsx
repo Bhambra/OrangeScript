@@ -1555,6 +1555,10 @@ export default function OrangeScript({ cloudDoctor }) {
   }, [setSavedTemplates, doctorId]);
 
   const applyTemplate = useCallback((tpl) => {
+    // Don't allow templates to overwrite signed prescriptions
+    const currentPage = rxPages.find(p => p.id === activePageId);
+    if (currentPage?.signed) { showToast("Cannot apply template to a signed prescription"); return; }
+
     // Snapshot current page, then overwrite with template data and remount
     if (rxDataRef.current && Object.keys(rxDataRef.current).length > 0) {
       setRxPages(prev => prev.map(p => p.id === activePageId ? { ...p, data: { ...rxDataRef.current } } : p));
@@ -1567,16 +1571,17 @@ export default function OrangeScript({ cloudDoctor }) {
       }
       return { ...s };
     });
+    // Templates only set sections and icdCodes — NOT testValues or knownConditions
+    // (those belong to Patient Details and should not be overwritten by templates)
     const templateData = {
       sections,
-      testValues: tpl.testValues || "",
       icdCodes: tpl.icdCodes || {},
       customSections: tpl.customSections || [],
     };
     const newPageId = Date.now();
     setRxPages(prev => prev.map(p => p.id === activePageId ? { ...p, data: templateData, id: newPageId } : p));
     setActivePageId(newPageId);
-  }, [activePageId]);
+  }, [activePageId, rxPages, showToast]);
 
   const rxDataRef = useRef({});
 
