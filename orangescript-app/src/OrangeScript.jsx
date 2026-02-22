@@ -1709,29 +1709,6 @@ export default function OrangeScript({ cloudDoctor }) {
     setLiveFollowUp(fuSec ? fuSec.content : "");
   }, [patient]);
 
-  useEffect(() => {
-    const handler = (e) => {
-      if (!(e.metaKey || e.ctrlKey)) return;
-      const k = e.key.toLowerCase();
-
-      if (k === "arrowleft") { e.preventDefault(); navigatePage(-1); return; }
-      if (k === "arrowright") { e.preventDefault(); navigatePage(1); return; }
-
-      // ⌘S / Ctrl+S → Save Rx (without Shift)
-      if (k === "s" && !e.shiftKey) { e.preventDefault(); saveRxToCloud(); return; }
-
-      // ⌘⇧S / Ctrl+Shift+S → Sign Rx
-      if (k === "s" && e.shiftKey) { e.preventDefault(); handleSignRx(); return; }
-
-      // ⌘N / Ctrl+N → New Rx
-      if (k === "n") { e.preventDefault(); createNewRx(); return; }
-
-      // ⌘Delete / ⌘Backspace / Ctrl+Delete / Ctrl+Backspace → Discard Rx
-      if (k === "delete" || k === "backspace") { e.preventDefault(); handleDiscardRx(); return; }
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [navigatePage, saveRxToCloud, handleSignRx, createNewRx, handleDiscardRx]);
   const [savedRxs, setSavedRxs] = usePersistedState("savedRxs", []);
   const [patientNotes, setPatientNotes] = usePersistedState("patientNotes", () => {
     const init = {};
@@ -2016,6 +1993,31 @@ export default function OrangeScript({ cloudDoctor }) {
       },
     });
   }, [patient, activePage, activePageId, showToast]);
+
+  // ── Global keyboard shortcuts (must be after all handler declarations) ──
+  useEffect(() => {
+    const handler = (e) => {
+      if (!(e.metaKey || e.ctrlKey)) return;
+      const k = e.key.toLowerCase();
+
+      if (k === "arrowleft") { e.preventDefault(); navigatePage(-1); return; }
+      if (k === "arrowright") { e.preventDefault(); navigatePage(1); return; }
+
+      // ⌘S / Ctrl+S → Save Rx (without Shift)
+      if (k === "s" && !e.shiftKey) { e.preventDefault(); saveRxToCloud(); return; }
+
+      // ⌘⇧S / Ctrl+Shift+S → Sign Rx
+      if (k === "s" && e.shiftKey) { e.preventDefault(); handleSignRx(); return; }
+
+      // ⌘N / Ctrl+N → New Rx
+      if (k === "n") { e.preventDefault(); createNewRx(); return; }
+
+      // ⌘Delete / ⌘Backspace / Ctrl+Delete / Ctrl+Backspace → Discard Rx
+      if (k === "delete" || k === "backspace") { e.preventDefault(); handleDiscardRx(); return; }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [navigatePage, saveRxToCloud, handleSignRx, createNewRx, handleDiscardRx]);
 
   const toggleCard = (k) => setOpenCards(c => ({ ...c, [k]: !c[k] }));
 
