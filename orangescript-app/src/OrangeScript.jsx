@@ -1305,6 +1305,25 @@ export default function OrangeScript({ cloudDoctor }) {
             testValues: rx.test_values || "",
           }));
           setSavedRxs(mapped);
+
+          // Pre-populate the editor with the most recent prescription for the active patient
+          const activeP = lsGet("activePatient", null);
+          const activePatientId = activeP ? activeP.id : (dbPatients.length > 0 ? dbPatients[0].id : null);
+          if (activePatientId) {
+            const latestRx = dbPrescriptions.find(rx => rx.patient_id === activePatientId);
+            if (latestRx && latestRx.sections && latestRx.sections.length > 0) {
+              const rxPageData = {
+                sections: latestRx.sections,
+                knownConditions: latestRx.known_conditions || "",
+                testValues: latestRx.test_values || "",
+                icdCodes: latestRx.icd_codes || {},
+                customSections: latestRx.custom_sections || [],
+              };
+              const pageId = Date.now();
+              setRxPages([{ id: pageId, patientId: activePatientId, data: rxPageData, saved: true, createdAt: latestRx.created_at }]);
+              setActivePageId(pageId);
+            }
+          }
         }
 
         // Templates
@@ -1429,7 +1448,7 @@ export default function OrangeScript({ cloudDoctor }) {
     if (patient && patient.id === updated.id) selectPatient(updated);
     setEditModal(null);
     // Sync to Supabase
-    if (doctorId && typeof updated.id === "string") {
+    if (doctorId && updated.id) {
       db.updatePatient(updated.id, { name: updated.name, gender: updated.gender, dob: updated.dob, age: updated.age, phone: updated.phone, email: updated.email })
         .catch(e => console.error("Cloud patient update failed:", e));
     }
@@ -1477,7 +1496,7 @@ export default function OrangeScript({ cloudDoctor }) {
     });
     setDeleteModal(null);
     // Unlink from Supabase
-    if (doctorId && typeof deletedId === "string") {
+    if (doctorId && deletedId) {
       db.deletePatientLink(doctorId, deletedId).catch(e => console.error("Cloud patient unlink failed:", e));
     }
   };
@@ -1516,7 +1535,7 @@ export default function OrangeScript({ cloudDoctor }) {
     if (templateModal.editId) {
       // Update existing template
       setSavedTemplates(prev => prev.map(t => t.id === templateModal.editId ? { ...t, ...tplData } : t));
-      if (doctorId && typeof templateModal.editId === "string") {
+      if (doctorId && templateModal.editId) {
         db.updateTemplate(templateModal.editId, tplData).catch(e => console.error("Cloud template update failed:", e));
       }
     } else {
@@ -1546,7 +1565,7 @@ export default function OrangeScript({ cloudDoctor }) {
 
   const deleteTemplate = useCallback((tplId) => {
     setSavedTemplates(prev => prev.filter(t => t.id !== tplId));
-    if (doctorId && typeof tplId === "string") {
+    if (doctorId && tplId) {
       db.deleteTemplate(tplId).catch(e => console.error("Cloud template delete failed:", e));
     }
   }, [setSavedTemplates, doctorId]);
@@ -1658,7 +1677,7 @@ export default function OrangeScript({ cloudDoctor }) {
     setPatientNotes(prev => ({ ...prev, [patient.id]: [...(prev[patient.id] || []), trimmed] }));
     setNoteInput("");
     // Sync to Supabase
-    if (doctorId && typeof patient.id === "string") {
+    if (doctorId && patient.id) {
       db.createNote(doctorId, patient.id, trimmed).then(noteRow => {
         if (noteRow) {
           noteIdMapRef.current = {
@@ -1723,7 +1742,7 @@ export default function OrangeScript({ cloudDoctor }) {
       setRxPages(prev => prev.map(p => p.id === activePageId ? { ...p, saved: true, data: { ...rxDataRef.current } } : p));
 
       // Sync prescription to Supabase (with FULL section content)
-      if (doctorId && typeof patient.id === "string") {
+      if (doctorId && patient.id) {
         const followUpDate = followUpSec?.content.trim().match(/^\d{4}-\d{2}-\d{2}$/) ? followUpSec.content.trim() : null;
         db.createPrescription(doctorId, patient.id, {
           sections: (data.sections || []).map(s => ({ id: s.id, label: s.label, content: s.content })),
