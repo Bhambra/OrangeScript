@@ -1075,9 +1075,9 @@ function RxEditor({ patient, onSave, customPhrases, onSavePhrase, onDeletePhrase
   useEffect(() => {
     const handler = (e) => {
       if (e.metaKey || e.ctrlKey) {
-        const map = { s: "symptoms", d: "diagnosis", r: "rx", t: "treatment", o: "tests", f: "followup" };
+        const map = { d: "diagnosis", r: "rx", t: "treatment", o: "tests", f: "followup" };
         const k = e.key.toLowerCase();
-        if (map[k]) { e.preventDefault(); const def = ALL_SECTIONS.find(s => s.id === map[k]); if (def) addSection(def, focusedSecId.current); }
+        if (map[k] && !e.shiftKey) { e.preventDefault(); const def = ALL_SECTIONS.find(s => s.id === map[k]); if (def) addSection(def, focusedSecId.current); }
         if (k === "enter" && !readOnly) { e.preventDefault(); onSave?.(); }
       }
     };
@@ -1711,18 +1711,27 @@ export default function OrangeScript({ cloudDoctor }) {
 
   useEffect(() => {
     const handler = (e) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === "ArrowLeft") {
-        e.preventDefault();
-        navigatePage(-1);
-      }
-      if ((e.metaKey || e.ctrlKey) && e.key === "ArrowRight") {
-        e.preventDefault();
-        navigatePage(1);
-      }
+      if (!(e.metaKey || e.ctrlKey)) return;
+      const k = e.key.toLowerCase();
+
+      if (k === "arrowleft") { e.preventDefault(); navigatePage(-1); return; }
+      if (k === "arrowright") { e.preventDefault(); navigatePage(1); return; }
+
+      // ⌘S / Ctrl+S → Save Rx (without Shift)
+      if (k === "s" && !e.shiftKey) { e.preventDefault(); saveRxToCloud(); return; }
+
+      // ⌘⇧S / Ctrl+Shift+S → Sign Rx
+      if (k === "s" && e.shiftKey) { e.preventDefault(); handleSignRx(); return; }
+
+      // ⌘N / Ctrl+N → New Rx
+      if (k === "n") { e.preventDefault(); createNewRx(); return; }
+
+      // ⌘Delete / ⌘Backspace / Ctrl+Delete / Ctrl+Backspace → Discard Rx
+      if (k === "delete" || k === "backspace") { e.preventDefault(); handleDiscardRx(); return; }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [navigatePage]);
+  }, [navigatePage, saveRxToCloud, handleSignRx, createNewRx, handleDiscardRx]);
   const [savedRxs, setSavedRxs] = usePersistedState("savedRxs", []);
   const [patientNotes, setPatientNotes] = usePersistedState("patientNotes", () => {
     const init = {};
@@ -2116,8 +2125,10 @@ export default function OrangeScript({ cloudDoctor }) {
         <div style={{ padding: "10px 16px", borderTop: "1px solid #eee", background: B.lightBg }}>
           <div style={{ fontSize: 9.5, fontWeight: 700, color: B.grey, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 4 }}>Shortcuts</div>
           <div style={{ fontSize: 10.5, color: B.secondary, lineHeight: 1.9, fontFamily: "monospace" }}>
+            <span style={{ color: B.grey }}>⌘S</span> Save <span style={{ color: B.grey }}>⌘⇧S</span> Sign Rx <span style={{ color: B.grey }}>⌘N</span> New Rx<br />
+            <span style={{ color: B.grey }}>⌘⌫</span> Discard <span style={{ color: B.grey }}>⌘←→</span> Navigate<br />
             <span style={{ color: B.grey }}>⌘R</span> Rx <span style={{ color: B.grey }}>⌘D</span> Diagnosis <span style={{ color: B.grey }}>⌘O</span> Tests<br />
-            <span style={{ color: B.grey }}>⌘S</span> Symptoms <span style={{ color: B.grey }}>⌘F</span> Follow Up<br />
+            <span style={{ color: B.grey }}>⌘T</span> Treatment <span style={{ color: B.grey }}>⌘F</span> Follow Up<br />
             <span style={{ color: B.grey }}>\</span> Phrases <span style={{ color: B.grey }}>\\</span> Add Section
           </div>
         </div>
