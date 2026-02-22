@@ -847,6 +847,7 @@ function RxEditor({ patient, onSave, customPhrases, onSavePhrase, onDeletePhrase
 
   // Push live conditions to parent for Summary Status sync
   useEffect(() => {
+    console.log("[RxEditor] pushing knownConditions to parent:", JSON.stringify(knownConditions));
     if (onLiveConditions) onLiveConditions(knownConditions);
   }, [knownConditions, onLiveConditions]);
 
@@ -1637,19 +1638,21 @@ export default function OrangeScript({ cloudDoctor }) {
 
   const createNewRx = useCallback(() => {
     if (!patient) return;
+    // Read conditions BEFORE snapshot (from current rxDataRef)
+    const currentRxConditions = rxDataRef.current?.knownConditions || "";
+    const carryConditions = currentRxConditions || liveConditions || patient.knownConditions || patient.conditions.join(", ");
+    console.log("[NewRx] carryConditions:", JSON.stringify(carryConditions), "from rxDataRef:", JSON.stringify(currentRxConditions), "liveConditions:", JSON.stringify(liveConditions), "patient.knownConditions:", JSON.stringify(patient.knownConditions));
     snapshotCurrentPage();
-    // Carry forward Known Conditions: prefer live (from current Rx), then patient DB record
-    const carryConditions = liveConditions || patient.knownConditions || patient.conditions.join(", ");
     const newPage = {
       id: Date.now(), patientId: patient.id, saved: false, createdAt: new Date().toISOString(),
       data: carryConditions ? { knownConditions: carryConditions } : null,
     };
     setRxPages(prev => [...prev, newPage]);
     setActivePageId(newPage.id);
-    // Explicitly carry liveConditions so Summary Status shows them immediately
+    // Explicitly set liveConditions so Summary Status shows them immediately
     setLiveConditions(carryConditions);
     setLiveFollowUp("");
-    currentRxIdRef.current = null; // New Rx = no existing Supabase record yet
+    currentRxIdRef.current = null;
     lastSavedSnapshotRef.current = null;
     setRxDirty(false);
   }, [snapshotCurrentPage, patient, liveConditions]);
