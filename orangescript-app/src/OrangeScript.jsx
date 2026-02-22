@@ -1713,6 +1713,87 @@ export default function OrangeScript({ cloudDoctor }) {
     setTimeout(() => setToast(false), 2500);
   }, []);
 
+  // ── Auto-save Rx to Supabase (every 15s + manual) ──
+  const lastSavedSnapshotRef = useRef(null);
+  const [rxDirty, setRxDirty] = useState(false);
+  const [rxSaving, setRxSaving] = useState(false);
+  const [rxSaveStatus, setRxSaveStatus] = useState("idle"); // idle | saving | saved | error
+
+  // Build a comparable snapshot string from current rxDataRef
+  const getRxSnapshot = useCallback(() => {
+    const d = rxDataRef.current;
+    if (!d || !d.sections) return null;
+    const filtered = (d.sections || []).filter(s => s.content && s.content.trim());
+    if (filtered.length === 0) return null;
+    return JSON.stringify({ sections: filtered, knownConditions: d.knownConditions || "", testValues: d.testValues || "", icdCodes: d.icdCodes || {} });
+  }, []);
+
+  // Check for dirty state every second
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const snap = getRxSnapshot();
+      if (!snap) { setRxDirty(false); return; }
+      setRxDirty(snap !== lastSavedSnapshotRef.current);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [getRxSnapshot]);
+
+  // Save Rx content to Supabase (without printing)
+  const saveRxToCloud = useCallback(async () => {
+    if (!doctorId || !patient || !patient.id) return;
+    const data = rxDataRef.current;
+    if (!data || !data.sections) return;
+    const secs = (data.sections || []).filter(s => s.content && s.content.trim());
+    if (secs.length === 0) return;
+
+    const snapshot = getRxSnapshot();
+    if (!snapshot || snapshot === lastSavedSnapshotRef.current) return; // No changes
+
+    setRxSaving(true);
+    setRxSaveStatus("saving");
+    setSyncStatus("syncing");
+    try {
+      const followUpSec = (data.sections || []).find(s => s.id === "followup");
+      const followUpDate = followUpSec?.content.trim().match(/^\d{4}-\d{2}-\d{2}$/) ? followUpSec.content.trim() : null;
+      await db.createPrescription(doctorId, patient.id, {
+        sections: secs.map(s => ({ id: s.id, label: s.label, content: s.content })),
+        icdCodes: data.icdCodes || {},
+        knownConditions: data.knownConditions || "",
+        testValues: data.testValues || "",
+        customSections: data.customSections || [],
+        followUpDate,
+      });
+      lastSavedSnapshotRef.current = snapshot;
+      setRxDirty(false);
+      setRxSaveStatus("saved");
+      setSyncStatus("synced");
+      setTimeout(() => { setRxSaveStatus("idle"); setSyncStatus("idle"); }, 3000);
+    } catch (e) {
+      console.error("Auto-save Rx failed:", e);
+      setRxSaveStatus("error");
+      setSyncStatus("error");
+      setTimeout(() => { setRxSaveStatus("idle"); setSyncStatus("idle"); }, 5000);
+    } finally {
+      setRxSaving(false);
+    }
+  }, [doctorId, patient, getRxSnapshot]);
+
+  // Auto-save every 15 seconds if dirty
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (rxDirty && !rxSaving) saveRxToCloud();
+    }, 15000);
+    return () => clearInterval(interval);
+  }, [rxDirty, rxSaving, saveRxToCloud]);
+
+  // When loading prescription from Supabase on mount, set the initial snapshot
+  useEffect(() => {
+    if (dataLoaded && rxDataRef.current && rxDataRef.current.sections) {
+      const snap = getRxSnapshot();
+      if (snap) lastSavedSnapshotRef.current = snap;
+    }
+  }, [dataLoaded, getRxSnapshot]);
+
   const handleSave = useCallback(async () => {
     if (!patient) { showToast("No patient selected"); return; }
     const data = rxDataRef.current;
@@ -1787,10 +1868,11 @@ export default function OrangeScript({ cloudDoctor }) {
           <span style={{ fontSize: 11, color: B.grey }}>{doctor.clinic} · {doctor.name}</span>
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10, fontWeight: 600, color: !online ? "#e74c3c" : syncStatus === "syncing" ? B.orange : syncStatus === "error" ? "#e74c3c" : B.grey, marginRight: 4 }}>
-            <div style={{ width: 7, height: 7, borderRadius: "50%", background: !online ? "#e74c3c" : syncStatus === "syncing" ? B.orange : syncStatus === "synced" ? B.green : syncStatus === "error" ? "#e74c3c" : "#ccc" }} />
-            {!online ? "Offline" : syncStatus === "syncing" ? "Syncing..." : syncStatus === "synced" ? "Saved" : syncStatus === "error" ? "Sync failed" : ""}
+          <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10, fontWeight: 600, color: !online ? "#e74c3c" : rxDirty ? B.orange : rxSaveStatus === "saving" ? B.orange : rxSaveStatus === "saved" ? B.green : rxSaveStatus === "error" ? "#e74c3c" : B.grey, marginRight: 4 }}>
+            <div style={{ width: 7, height: 7, borderRadius: "50%", background: !online ? "#e74c3c" : rxDirty ? B.orange : rxSaveStatus === "saving" ? B.orange : rxSaveStatus === "saved" ? B.green : rxSaveStatus === "error" ? "#e74c3c" : "#ccc" }} />
+            {!online ? "Offline" : rxDirty ? "Unsaved changes" : rxSaveStatus === "saving" ? "Saving..." : rxSaveStatus === "saved" ? "Saved" : rxSaveStatus === "error" ? "Save failed" : ""}
           </div>
+          <Btn label={rxSaving ? "Saving..." : "Save Rx"} onClick={saveRxToCloud} disabled={rxSaving || !rxDirty} />
           <Btn label="+ New Rx" onClick={createNewRx} />
           <Btn label={saving ? "Generating..." : "Print Rx"} primary onClick={handleSave} disabled={saving} />
           <div onClick={openDoctorModal} title="Doctor Settings" style={{ width: 28, height: 28, borderRadius: "50%", background: B.greenT15, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
