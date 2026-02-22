@@ -1941,8 +1941,8 @@ export default function OrangeScript({ cloudDoctor }) {
       // ⌘⇧S / Ctrl+Shift+S → Sign Rx
       if (k === "s" && e.shiftKey) { e.preventDefault(); handleSignRx(); return; }
 
-      // ⌘N / Ctrl+N → New Rx
-      if (k === "n") { e.preventDefault(); createNewRx(); return; }
+      // ⌘↓ / Ctrl+↓ → New Rx
+      if (k === "arrowdown") { e.preventDefault(); createNewRx(); return; }
 
       // ⌘Delete / ⌘Backspace / Ctrl+Delete / Ctrl+Backspace → Discard Rx
       if (k === "delete" || k === "backspace") { e.preventDefault(); handleDiscardRx(); return; }
@@ -1982,7 +1982,7 @@ export default function OrangeScript({ cloudDoctor }) {
           <Btn label={isActiveSigned ? "Signed" : "Sign Rx"} primary onClick={handleSignRx} disabled={isActiveSigned || !activePage} title={isActiveSigned ? "Already signed" : `Sign & lock prescription (${MOD}${IS_MAC ? "⇧" : "Shift+"}S)`} />
           <Btn label={saving ? "Downloading..." : "Download"} onClick={handleDownloadRx} disabled={saving || !activePage} title={`Download as image (${MOD}Enter)`} />
           <Btn label="Discard Rx" danger onClick={handleDiscardRx} disabled={isActiveSigned || !activePage} title={isActiveSigned ? "A signed prescription cannot be discarded" : `Discard prescription (${MOD}${IS_MAC ? "⌫" : "Del"})`} />
-          <Btn label="+ New Rx" onClick={createNewRx} title={`New prescription (${MOD}N)`} />
+          <Btn label="+ New Rx" onClick={createNewRx} title={`New prescription (${MOD}↓)`} />
           <div onClick={openDoctorModal} title="Doctor Settings" style={{ width: 28, height: 28, borderRadius: "50%", background: B.greenT15, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={B.green} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
           </div>
@@ -2449,7 +2449,7 @@ function ShortcutsModal({ open, onClose }) {
     { group: "Prescription Actions", items: [
       { keys: `${m}S`, label: "Save prescription" },
       { keys: `${m}${IS_MAC ? "⇧" : "Shift+"}S`, label: "Sign prescription" },
-      { keys: `${m}N`, label: "New prescription" },
+      { keys: `${m}↓`, label: "New prescription" },
       { keys: `${m}${del}`, label: "Discard prescription" },
       { keys: `${m}Enter`, label: "Download prescription" },
       { keys: `${m}← →`, label: "Navigate between prescriptions" },
