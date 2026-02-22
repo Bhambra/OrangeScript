@@ -224,6 +224,7 @@ const styles = {
   page: {
     minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
     background: '#ede9e0', fontFamily: FONT_UI, padding: 20,
+    overflowY: 'auto',
   },
   card: {
     background: B.white, borderRadius: 12, padding: '32px 36px', maxWidth: 380,

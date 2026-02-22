@@ -580,12 +580,10 @@ async function shareImage(canvas, fileName, patientName) {
       if (!blob) { resolve("error"); return; }
       const file = new File([blob], fileName, { type: "image/png" });
 
-      // Try native share
+      // Try native share — only share the image file (no title/text to avoid duplicates and links)
       if (navigator.canShare && navigator.canShare({ files: [file] })) {
         try {
           await navigator.share({
-            title: "Prescription \u2014 " + patientName,
-            text: "Prescription for " + patientName,
             files: [file],
           });
           resolve("shared"); return;
