@@ -57,19 +57,7 @@ const PHRASES = {
     "Warm saline gargle three times daily",
     "Light diet, avoid oily and spicy food",
   ],
-  tests: [
-    { name: "Complete Blood Count (CBC)", ohl: true },
-    { name: "HbA1c", ohl: true },
-    { name: "Fasting Blood Sugar", ohl: true },
-    { name: "Lipid Profile", ohl: true },
-    { name: "Thyroid Profile (T3, T4, TSH)", ohl: true },
-    { name: "Kidney Function Test (KFT)", ohl: true },
-    { name: "Liver Function Test (LFT)", ohl: true },
-    { name: "Vitamin D (25-OH)", ohl: true },
-    { name: "Vitamin B12", ohl: true },
-    { name: "Chest X-Ray PA View", ohl: false },
-    { name: "ECG 12-lead", ohl: false },
-  ],
+  tests: [], // Live search via Orange Health API — custom phrases layered on top
   followup: [],
 };
 
@@ -91,6 +79,32 @@ async function searchICD10(query) {
     return results;
   } catch (e) {
     console.error("ICD-10 search failed:", e);
+    return [];
+  }
+}
+
+// ── Lab test search via Orange Health API ──
+const testCache = {};
+async function searchTests(query) {
+  if (!query || query.length < 2) return [];
+  const key = query.toLowerCase();
+  if (testCache[key]) return testCache[key];
+  try {
+    const res = await fetch(`https://cerebro.orangehealth.in/api/v3/search/aggregated?city_code=BLR&limit=15&offset=1&search_substring=${encodeURIComponent(query)}`);
+    const json = await res.json();
+    const tests = (json.tests || []).map(t => ({ name: t.testName, ohl: true }));
+    const packages = (json.packages || []).map(p => ({ name: p.packageName, ohl: true }));
+    // Deduplicate by name
+    const seen = new Set();
+    const results = [];
+    [...tests, ...packages].forEach(item => {
+      const k = item.name.toLowerCase();
+      if (!seen.has(k)) { seen.add(k); results.push(item); }
+    });
+    testCache[key] = results;
+    return results;
+  } catch (e) {
+    console.error("Test search failed:", e);
     return [];
   }
 }
@@ -843,6 +857,18 @@ function RxEditor({ patient, onSave, customPhrases, onSavePhrase, onDeletePhrase
           });
           return;
         }
+        // For tests: use live Orange Health API search + custom phrases on top
+        if (secId === "tests" && lower.length >= 2) {
+          const custom = customPhrases.tests || [];
+          const customFiltered = custom.filter(p => { const t = typeof p === "object" ? p.name : p; return t.toLowerCase().includes(lower); });
+          setDropdown({ show: true, items: customFiltered.length ? customFiltered : [{ name: "Searching...", ohl: false, _loading: true }], idx: 0, type: "phrase", secId, startPos: singleIdx });
+          searchTests(query).then(apiResults => {
+            const merged = [...customFiltered, ...apiResults.filter(a => !customFiltered.some(c => (typeof c === "object" ? c.name : c).toLowerCase() === a.name.toLowerCase()))];
+            if (merged.length) setDropdown(prev => prev.secId === secId ? { ...prev, items: merged, idx: 0 } : prev);
+            else setDropdown(prev => prev.secId === secId ? { show: false, items: [], idx: 0, type: null, secId: null, startPos: 0 } : prev);
+          });
+          return;
+        }
         // For other sections: use local phrase pool
         const pool = getPhrasePool(secId);
         const filtered = lower
@@ -1037,11 +1063,12 @@ function RxEditor({ patient, onSave, customPhrases, onSavePhrase, onDeletePhrase
         value={testValues}
         onChange={setTestValues}
         phrasePool={[...PHRASES.tests, ...(customPhrases.tests || [])]}
-        placeholder="type \ for phrases..."
+        placeholder="type \ to search tests..."
         onSavePhrase={(p) => onSavePhrase("tests", p)}
         onDeletePhrase={(p) => onDeletePhrase("tests", p)}
         customPhrases={customPhrases.tests || []}
         readOnly={readOnly}
+        asyncSearch={searchTests}
       />
 
       {/* DYNAMIC SECTIONS */}
