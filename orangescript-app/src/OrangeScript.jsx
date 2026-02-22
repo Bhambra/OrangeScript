@@ -1624,15 +1624,19 @@ export default function OrangeScript({ cloudDoctor }) {
   const createNewRx = useCallback(() => {
     if (!patient) return;
     snapshotCurrentPage();
-    const newPage = { id: Date.now(), patientId: patient.id, data: null, saved: false, createdAt: new Date().toISOString() };
+    // Carry forward Known Conditions from the current Rx to the new one
+    const carryConditions = liveConditions || patient.conditions.join(", ");
+    const newPage = {
+      id: Date.now(), patientId: patient.id, saved: false, createdAt: new Date().toISOString(),
+      data: carryConditions ? { knownConditions: carryConditions } : null,
+    };
     setRxPages(prev => [...prev, newPage]);
     setActivePageId(newPage.id);
-    setLiveConditions(patient.conditions.join(", "));
     setLiveFollowUp("");
     currentRxIdRef.current = null; // New Rx = no existing Supabase record yet
     lastSavedSnapshotRef.current = null;
     setRxDirty(false);
-  }, [snapshotCurrentPage, patient]);
+  }, [snapshotCurrentPage, patient, liveConditions]);
 
   // ⌘+Left/Right to navigate pages (within current patient)
   const activePageIdRef = useRef(activePageId);
