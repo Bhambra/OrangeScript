@@ -1,13 +1,45 @@
-import { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from './supabase.js';
 
 const AuthContext = createContext(null);
+
+// Unique ID for this tab — used to avoid self-eviction
+const TAB_ID = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
 export function AuthProvider({ children }) {
   const [session, setSession] = useState(null);
   const [doctor, setDoctor] = useState(null);
   const [loading, setLoading] = useState(true);
   const [profileLoading, setProfileLoading] = useState(false);
+  const [evicted, setEvicted] = useState(false);
+  const channelRef = useRef(null);
+
+  // ── Cross-tab single-session enforcement ──
+  useEffect(() => {
+    if (typeof BroadcastChannel === 'undefined') return; // Safari <15.4 fallback: no-op
+
+    const channel = new BroadcastChannel('orangescript_auth');
+    channelRef.current = channel;
+
+    channel.onmessage = (event) => {
+      const { type, tabId } = event.data || {};
+      if (tabId === TAB_ID) return; // Ignore own messages
+
+      if (type === 'SESSION_STARTED') {
+        // Another tab just logged in — evict this tab
+        console.log('[Auth] Another tab logged in — signing out this tab');
+        supabase.auth.signOut();
+        setSession(null);
+        setDoctor(null);
+        setEvicted(true);
+      }
+    };
+
+    return () => {
+      channel.close();
+      channelRef.current = null;
+    };
+  }, []);
 
   // Listen for auth state changes
   useEffect(() => {
@@ -19,10 +51,18 @@ export function AuthProvider({ children }) {
     });
 
     // Subscribe to changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setSession(session);
-      if (session) loadDoctorProfile(session.user.id);
-      else { setDoctor(null); setLoading(false); }
+      if (session) {
+        loadDoctorProfile(session.user.id);
+        // Broadcast to other tabs that this tab has an active session
+        if (event === 'SIGNED_IN' && channelRef.current) {
+          channelRef.current.postMessage({ type: 'SESSION_STARTED', tabId: TAB_ID });
+        }
+      } else {
+        setDoctor(null);
+        setLoading(false);
+      }
     });
 
     return () => subscription.unsubscribe();
@@ -108,11 +148,15 @@ export function AuthProvider({ children }) {
     return { data };
   }, []);
 
-  // Sign out
+  // Sign out — also clears localStorage to prevent stale data on next login
   const signOut = useCallback(async () => {
     await supabase.auth.signOut();
+    // Clear app data from localStorage so next login starts fresh from Supabase
+    const keysToRemove = ['patients', 'activePatient', 'savedRxs', 'customPhrases', 'patientNotes', 'savedTemplates'];
+    keysToRemove.forEach(k => { try { localStorage.removeItem(k); } catch(e) {} });
     setSession(null);
     setDoctor(null);
+    setEvicted(false);
   }, []);
 
   const value = {
@@ -122,6 +166,7 @@ export function AuthProvider({ children }) {
     loading,
     profileLoading,
     isNewDoctor: session && !doctor,
+    evicted,
     signUp,
     signIn,
     signOut,

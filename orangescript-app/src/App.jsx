@@ -3,7 +3,7 @@ import AuthScreen from './components/AuthScreen.jsx';
 import OrangeScript from './OrangeScript.jsx';
 
 export default function App() {
-  const { session, doctor, loading, isNewDoctor } = useAuth();
+  const { session, doctor, loading, isNewDoctor, evicted } = useAuth();
 
   // Show loading while checking auth state
   if (loading) {
@@ -25,7 +25,20 @@ export default function App() {
 
   // Not logged in, or new doctor needing onboarding → show auth screen
   if (!session || isNewDoctor) {
-    return <AuthScreen />;
+    return (
+      <>
+        {evicted && (
+          <div style={{
+            background: '#FFF4E6', borderBottom: '2px solid #F7941D',
+            padding: '12px 20px', textAlign: 'center',
+            fontFamily: "'Montserrat', sans-serif", fontSize: 13, color: '#333',
+          }}>
+            ⚠️ You were signed out because your account was opened in another tab.
+          </div>
+        )}
+        <AuthScreen />
+      </>
+    );
   }
 
   // Logged in with profile → show the app, passing doctor from cloud
